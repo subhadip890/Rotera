@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { RoundtableCanvas } from '../components/roundtable'
 import Navbar from '../components/layout/Navbar'
+import { OnboardingFlow, useOnboarding } from '../components/onboarding/OnboardingFlow'
 
 const fadeUp = {
   initial: { opacity: 0, y: 30 },
@@ -44,6 +45,8 @@ const socialProof = [
 ]
 
 function Landing() {
+  const { show: showOnboarding, dismiss: dismissOnboarding } = useOnboarding()
+
   // Demo members for the hero Roundtable
   const demoMembers = [
     { address: 'GABCD...WXYZ', hasPaid: true, isLate: false },
@@ -280,6 +283,11 @@ function Landing() {
           </p>
         </div>
       </footer>
+
+      {/* First-time visitor onboarding */}
+      <AnimatePresence>
+        {showOnboarding && <OnboardingFlow onDone={dismissOnboarding} />}
+      </AnimatePresence>
     </div>
   )
 }
