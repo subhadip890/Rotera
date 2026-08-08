@@ -5,6 +5,11 @@ import { Roundtable } from "@/components/roundtable/Roundtable";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { useRotera } from "@/store/useRotera";
 import { countdown, formatAmount, potTotal, YOU_ID } from "@/lib/rotera";
+import {
+  useCircleState,
+  useContributeMutation,
+  useCloseCycleMutation,
+} from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/circle")({
   head: () => ({
@@ -27,17 +32,21 @@ export const Route = createFileRoute("/circle")({
 
 function Dashboard() {
   const {
-    circle,
+    circle: storeCircle,
     wallet,
     loadDemoCircle,
-    payShare,
-    closeCycle,
     lastPayout,
     dismissPayout,
     onboardingDone,
   } = useRotera();
+
+  const { data: chainCircle } = useCircleState("sunday-six");
+  const circle = chainCircle || storeCircle;
+
+  const contributeMutation = useContributeMutation();
+  const closeCycleMutation = useCloseCycleMutation();
+
   const [now, setNow] = useState<number | null>(null);
-  const [paying, setPaying] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,10 +111,29 @@ function Dashboard() {
       return;
     }
     setPayError(null);
-    setPaying(true);
-    await new Promise((r) => setTimeout(r, 900));
-    setPaying(false);
-    payShare();
+    try {
+      await contributeMutation.mutateAsync({
+        circleId: circle.id,
+        amount: circle.amount,
+        cycleNumber: circle.currentCycle,
+      });
+    } catch (err: any) {
+      setPayError(err?.message || "Contribution transaction failed.");
+    }
+  }
+
+  async function handleCloseCycle() {
+    setPayError(null);
+    try {
+      await closeCycleMutation.mutateAsync({
+        circleId: circle.id,
+        cycleNumber: circle.currentCycle,
+        recipientName: recipient?.name || "Member",
+        amountPaidOut: potTotal(circle),
+      });
+    } catch (err: any) {
+      setPayError(err?.message || "Keeper close_cycle transaction failed.");
+    }
   }
 
   return (
@@ -159,10 +187,13 @@ function Dashboard() {
                     paid out and the ring turns.
                   </p>
                   <button
-                    onClick={closeCycle}
-                    className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment"
+                    onClick={() => void handleCloseCycle()}
+                    disabled={closeCycleMutation.isPending}
+                    className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment disabled:opacity-60"
                   >
-                    Simulate cutoff and pay out {recipientLabel}
+                    {closeCycleMutation.isPending
+                      ? "Executing Soroban keeper close_cycle…"
+                      : `Close cycle and pay out ${recipientLabel}`}
                   </button>
                 </div>
               ) : (
@@ -177,10 +208,12 @@ function Dashboard() {
                   </p>
                   <button
                     onClick={() => void handlePay()}
-                    disabled={paying}
+                    disabled={contributeMutation.isPending}
                     className="mt-4 w-full rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60 sm:w-auto"
                   >
-                    {paying ? "Approve it in your wallet…" : "Pay my share"}
+                    {contributeMutation.isPending
+                      ? "Approve it in your wallet…"
+                      : "Pay my share"}
                   </button>
                   {payError && (
                     <p

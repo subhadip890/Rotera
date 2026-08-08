@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRotera } from "@/store/useRotera";
 import { formatAmount } from "@/lib/rotera";
+import { useCircleState } from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/history")({
   head: () => ({
@@ -22,7 +23,9 @@ export const Route = createFileRoute("/history")({
 });
 
 function History() {
-  const { circle, loadDemoCircle } = useRotera();
+  const { circle: storeCircle, loadDemoCircle } = useRotera();
+  const { data: chainCircle } = useCircleState("sunday-six");
+  const circle = chainCircle || storeCircle;
 
   if (!circle) {
     return (

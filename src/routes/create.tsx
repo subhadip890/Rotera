@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { randomizeOrder } from "@/lib/rotera";
+import { useCreateCircleMutation } from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
@@ -38,6 +39,8 @@ function CreateCircle() {
   const [invite, setInvite] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const createCircleMutation = useCreateCircleMutation();
+
   const seats = members.map((m, i) => ({
     id: `${i}-${m}`,
     name: m || `Seat ${i + 1}`,
@@ -50,7 +53,7 @@ function CreateCircle() {
     setMembers((prev) => prev.map((m, idx) => (idx === i ? value : m)));
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (members.some((m) => !m.trim())) {
       setError("Every seat needs a name. Fill the blank seats or remove them.");
@@ -61,7 +64,18 @@ function CreateCircle() {
       return;
     }
     setError(null);
-    setInvite(`rotera.app/join/${name.toLowerCase().replace(/\s+/g, "-")}-4f2a`);
+
+    try {
+      const res = await createCircleMutation.mutateAsync({
+        name,
+        amount: Number(amount),
+        cadence,
+        members,
+      });
+      setInvite(`rotera.app/join/${res.circleId}`);
+    } catch (err: any) {
+      setError(err?.message || "Could not submit contract transaction.");
+    }
   }
 
   return (
@@ -185,9 +199,12 @@ function CreateCircle() {
 
           <button
             type="submit"
-            className="rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90"
+            disabled={createCircleMutation.isPending}
+            className="rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
           >
-            Create circle and get the invite link
+            {createCircleMutation.isPending
+              ? "Signing & Creating Circle…"
+              : "Create circle and get the invite link"}
           </button>
         </form>
 

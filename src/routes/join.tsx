@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
+import { useJoinCircleMutation } from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/join")({
   head: () => ({
@@ -32,8 +34,25 @@ const SEATS = [
 
 function JoinCircle() {
   const navigate = useNavigate();
-  const { wallet, connect, loadDemoCircle } = useRotera();
+  const { wallet, address, connect, loadDemoCircle } = useRotera();
+  const joinMutation = useJoinCircleMutation();
+  const [error, setError] = useState<string | null>(null);
+
   const connected = wallet === "connected";
+
+  async function handleTakeSeat() {
+    setError(null);
+    try {
+      await joinMutation.mutateAsync({
+        circleId: "sunday-six-4f2a",
+        userAddress: address || "GCKFBEIYTKP6RCZX6LQZ4H3PWQ2VMZ7NDLT3WA",
+      });
+      loadDemoCircle();
+      void navigate({ to: "/circle" });
+    } catch (err: any) {
+      setError(err?.message || "Join transaction failed.");
+    }
+  }
 
   return (
     <div className="mx-auto grid max-w-5xl gap-12 px-5 py-12 lg:grid-cols-[1fr_380px]">
@@ -62,6 +81,15 @@ function JoinCircle() {
           ))}
         </ul>
 
+        {error && (
+          <p
+            role="alert"
+            className="mt-6 rounded-md border border-rust/40 bg-rust/10 p-3 text-sm text-rust"
+          >
+            {error}
+          </p>
+        )}
+
         <div className="mt-10 rounded-xl border border-border bg-chalk p-5">
           {connected ? (
             <>
@@ -70,13 +98,11 @@ function JoinCircle() {
                 Joining costs nothing. Your first 200 XLM is due at the next cutoff.
               </p>
               <button
-                onClick={() => {
-                  loadDemoCircle();
-                  void navigate({ to: "/circle" });
-                }}
-                className="mt-4 rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90"
+                onClick={() => void handleTakeSeat()}
+                disabled={joinMutation.isPending}
+                className="mt-4 rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
               >
-                Take seat 4
+                {joinMutation.isPending ? "Confirming on chain…" : "Take seat 4"}
               </button>
             </>
           ) : (
