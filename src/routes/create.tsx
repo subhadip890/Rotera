@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { randomizeOrder } from "@/lib/rotera";
 import { useCreateCircleMutation } from "@/hooks/useSorobanQueries";
+import { useRotera } from "@/store/useRotera";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
@@ -24,55 +25,66 @@ export const Route = createFileRoute("/create")({
 });
 
 function CreateCircle() {
+  const navigate = useNavigate();
+  const { wallet, connect, setActiveCircleId } = useRotera();
+  const connected = wallet === "connected";
+
   const [name, setName] = useState("Sunday Six");
   const [amount, setAmount] = useState("200");
   const [cadence, setCadence] = useState("Weekly");
-  const [members, setMembers] = useState<string[]>([
-    "Priya",
-    "Tunde",
-    "Mariela",
-    "You",
-    "Samir",
-    "Nomsa",
-  ]);
+  const [memberCount, setMemberCount] = useState(6);
   const [seed, setSeed] = useState<number | null>(null);
+  const [orderType, setOrderType] = useState<"Manual" | "RandomPending">("Manual");
   const [invite, setInvite] = useState<string | null>(null);
+  const [realCircleId, setRealCircleId] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const createCircleMutation = useCreateCircleMutation();
 
-  const seats = members.map((m, i) => ({
-    id: `${i}-${m}`,
-    name: m || `Seat ${i + 1}`,
+  const seats = Array.from({ length: memberCount }, (_, i) => ({
+    id: String(i),
+    name: `Seat ${i + 1}`,
     status: "waiting" as const,
   }));
 
-  const potPerCycle = (Number(amount) || 0) * members.length;
-
-  function updateMember(i: number, value: string) {
-    setMembers((prev) => prev.map((m, idx) => (idx === i ? value : m)));
-  }
+  const potPerCycle = (Number(amount) || 0) * memberCount;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (members.some((m) => !m.trim())) {
-      setError("Every seat needs a name. Fill the blank seats or remove them.");
+    setError(null);
+
+    if (!connected) {
+      setError("Connect your Freighter wallet before creating a circle.");
       return;
     }
+
     if (!Number(amount) || Number(amount) <= 0) {
       setError("Set a contribution above 0 XLM — that's the amount each seat pays.");
       return;
     }
-    setError(null);
+
+    if (memberCount < 3 || memberCount > 12) {
+      setError("A circle needs between 3 and 12 members.");
+      return;
+    }
 
     try {
       const res = await createCircleMutation.mutateAsync({
         name,
         amount: Number(amount),
         cadence,
-        members,
+        memberCount,
+        payoutOrderType: orderType,
       });
-      setInvite(`rotera.app/join/${res.circleId}`);
+
+      setRealCircleId(res.circleId);
+      setTxHash(res.txHash);
+      setActiveCircleId(res.circleId);  // persist for dashboard use
+
+      // Use the real on-chain circle ID in the invite URL
+      const origin = typeof window !== "undefined" ? window.location.origin : "https://rotera.app";
+      setInvite(`${origin}/join/${res.circleId}`);
     } catch (err: any) {
       setError(err?.message || "Could not submit contract transaction.");
     }
@@ -87,6 +99,23 @@ function CreateCircle() {
           the amount, the schedule and the order can't be changed by anyone — including
           you.
         </p>
+
+        {!connected && (
+          <div className="mt-6 rounded-xl border border-border bg-chalk p-5">
+            <p className="font-medium">Connect a wallet to create a circle</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Freighter wallet required. Your wallet signs the on-chain create transaction.
+            </p>
+            <button
+              type="button"
+              onClick={() => void connect()}
+              disabled={wallet === "connecting"}
+              className="mt-4 rounded-md bg-ink px-5 py-3 font-semibold text-chalk transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
+            >
+              {wallet === "connecting" ? "Waiting for Freighter…" : "Connect wallet"}
+            </button>
+          </div>
+        )}
 
         <form onSubmit={submit} className="mt-10 space-y-8">
           <div className="grid gap-5 sm:grid-cols-2">
@@ -123,18 +152,18 @@ function CreateCircle() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setMembers((m) => m.slice(0, Math.max(2, m.length - 1)))}
+                  onClick={() => setMemberCount((n) => Math.max(3, n - 1))}
                   className="size-11 rounded-md border border-border bg-chalk text-lg transition-colors duration-200 hover:bg-parchment"
                   aria-label="Remove a seat"
                 >
                   −
                 </button>
                 <span id="c-seats" className="num w-10 text-center text-lg">
-                  {members.length}
+                  {memberCount}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setMembers((m) => [...m, ""])}
+                  onClick={() => setMemberCount((n) => Math.min(12, n + 1))}
                   className="size-11 rounded-md border border-border bg-chalk text-lg transition-colors duration-200 hover:bg-parchment"
                   aria-label="Add a seat"
                 >
@@ -147,43 +176,30 @@ function CreateCircle() {
           <div>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">Payout order</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  const { order, seed: s } = randomizeOrder(members);
-                  setMembers(order);
-                  setSeed(s);
-                }}
-                className="rounded-md border border-verdigris px-3 py-2 text-sm text-verdigris transition-colors duration-200 hover:bg-verdigris hover:text-chalk"
-              >
-                Randomize for me
-              </button>
+              <div className="flex items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={orderType === "RandomPending"}
+                    onChange={(e) =>
+                      setOrderType(e.target.checked ? "RandomPending" : "Manual")
+                    }
+                    className="rounded"
+                  />
+                  Randomize on-chain at activation
+                </label>
+              </div>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Type the order your group agreed on, or draw it here in front of everyone.
+              {orderType === "RandomPending"
+                ? "Order will be shuffled from the ledger hash when the last seat is filled — verifiable by everyone."
+                : "Seats are filled in join order. Share the invite link with members in your agreed payout sequence."}
             </p>
 
-            <ol className="mt-4 space-y-2">
-              {members.map((m, i) => (
-                <li key={i} className="flex items-center gap-3">
-                  <span className="num w-7 text-sm text-muted-foreground">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <input
-                    value={m}
-                    onChange={(e) => updateMember(i, e.target.value)}
-                    placeholder="Name"
-                    aria-label={`Seat ${i + 1} name`}
-                    className="input flex-1"
-                  />
-                </li>
-              ))}
-            </ol>
-
-            {seed !== null && (
+            {seed !== null && orderType === "Manual" && (
               <p className="num mt-3 rounded-md border border-border bg-chalk p-3 text-xs text-muted-foreground">
-                Drawn with a Fisher-Yates shuffle from seed {seed}. Re-run it as many
-                times as your group wants — the seed is shown every time.
+                Preview drawn with Fisher-Yates from seed {seed}. The binding order comes
+                from the chain when the circle activates.
               </p>
             )}
           </div>
@@ -199,30 +215,54 @@ function CreateCircle() {
 
           <button
             type="submit"
-            disabled={createCircleMutation.isPending}
+            disabled={createCircleMutation.isPending || !connected}
             className="rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
           >
             {createCircleMutation.isPending
-              ? "Signing & Creating Circle…"
+              ? "Signing & creating circle on Stellar…"
               : "Create circle and get the invite link"}
           </button>
         </form>
 
-        {invite && (
+        {invite && realCircleId && (
           <div className="mt-8 rounded-xl border border-brass/50 bg-chalk p-5">
-            <h2 className="text-xl font-semibold">{name} is ready</h2>
+            <h2 className="text-xl font-semibold">{name} is live on Stellar Testnet</h2>
             <p className="mt-1 text-muted-foreground">
-              Send this link to the other {members.length - 1} people. Each one claims
-              their seat in the order above.
+              Send this link to your group. Each person claims their seat by connecting
+              a wallet and joining.
             </p>
             <p className="num mt-3 break-all rounded-md bg-parchment px-3 py-2.5 text-sm">
               {invite}
             </p>
-            <Link
-              to="/circle"
-              className="mt-4 inline-block rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-chalk transition-opacity duration-200 hover:opacity-90"
+            {txHash && (
+              <p className="num mt-2 text-xs text-muted-foreground">
+                Circle #{realCircleId} · tx{" "}
+                <a
+                  href={`https://stellar.expert/explorer/testnet/tx/${txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-verdigris underline underline-offset-2"
+                >
+                  {txHash.slice(0, 8)}…{txHash.slice(-6)}
+                </a>
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof navigator !== "undefined") {
+                  navigator.clipboard.writeText(invite).catch(() => {});
+                }
+              }}
+              className="mt-3 rounded-md border border-border px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-parchment"
             >
-              Open the circle
+              Copy invite link
+            </button>
+            <Link
+              to={`/join/${realCircleId}`}
+              className="ml-3 mt-3 inline-block rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-chalk transition-opacity duration-200 hover:opacity-90"
+            >
+              Open circle
             </Link>
           </div>
         )}
@@ -234,7 +274,8 @@ function CreateCircle() {
           <Row k="Each person pays" v={`${Number(amount) || 0} XLM`} />
           <Row k="How often" v={cadence.toLowerCase()} />
           <Row k="Pot per cycle" v={`${potPerCycle.toLocaleString("en-US")} XLM`} />
-          <Row k="Full rotation" v={`${members.length} cycles`} />
+          <Row k="Full rotation" v={`${memberCount} cycles`} />
+          <Row k="Payout order" v={orderType === "RandomPending" ? "Randomised on-chain" : "Join order"} />
         </dl>
       </aside>
     </div>

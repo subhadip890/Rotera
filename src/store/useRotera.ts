@@ -1,30 +1,29 @@
 import { create } from "zustand";
-import { makeDemoCircle, YOU_ID, type Circle } from "@/lib/rotera";
-import { connectFreighter } from "@/lib/stellar";
+import { connectFreighter, WalletConnectionError } from "@/lib/stellar";
 import { identifyUser, trackEvent } from "@/lib/posthog";
 import { captureException } from "@/lib/sentry";
 
 type WalletState = "disconnected" | "connecting" | "connected" | "rejected";
 
+const STORAGE_WALLET_KEY = "rotera_connected_address";
+const SESSION_CIRCLE_KEY = "rotera_circle_id";
+
 type RoteraStore = {
   wallet: WalletState;
   address: string | null;
-  balance: number;
   walletError: string | null;
-  circle: Circle | null;
-  joined: boolean;
+  // UI-only state
+  activeCircleId: string | null;
   lastPayout: { recipient: string; amount: number; cycle: number } | null;
   onboardingDone: boolean;
+  // Actions
   connect: () => Promise<void>;
   disconnect: () => void;
-  loadDemoCircle: () => void;
-  payShare: () => void;
-  closeCycle: () => void;
+  setActiveCircleId: (id: string) => void;
+  setLastPayout: (payout: { recipient: string; amount: number; cycle: number } | null) => void;
   dismissPayout: () => void;
   finishOnboarding: () => void;
 };
-
-const STORAGE_WALLET_KEY = "rotera_connected_address";
 
 const getStoredAddress = (): string | null => {
   if (typeof window === "undefined" || typeof localStorage === "undefined") return null;
@@ -35,15 +34,22 @@ const getStoredAddress = (): string | null => {
   }
 };
 
+const getStoredCircleId = (): string | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    return sessionStorage.getItem(SESSION_CIRCLE_KEY);
+  } catch {
+    return null;
+  }
+};
+
 const initialAddress = getStoredAddress();
 
-export const useRotera = create<RoteraStore>((set, get) => ({
+export const useRotera = create<RoteraStore>((set) => ({
   wallet: initialAddress ? "connected" : "disconnected",
   address: initialAddress,
-  balance: 1840.5,
   walletError: null,
-  circle: null,
-  joined: false,
+  activeCircleId: getStoredCircleId(),
   lastPayout: null,
   onboardingDone: false,
 
@@ -51,9 +57,15 @@ export const useRotera = create<RoteraStore>((set, get) => ({
     set({ wallet: "connecting", walletError: null });
     try {
       const realAddress = await connectFreighter();
+
       if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
-        try { localStorage.setItem(STORAGE_WALLET_KEY, realAddress); } catch {}
+        try {
+          localStorage.setItem(STORAGE_WALLET_KEY, realAddress);
+        } catch {
+          // ignore storage errors
+        }
       }
+
       set({
         wallet: "connected",
         address: realAddress,
@@ -63,102 +75,64 @@ export const useRotera = create<RoteraStore>((set, get) => ({
       identifyUser(realAddress);
       trackEvent("wallet_connected", { wallet: "Freighter", address: realAddress });
     } catch (err: any) {
-      console.warn("[Wallet Connect Fallback]:", err?.message || err);
-      const errMsg = err?.message || "Freighter connection rejected or unavailable.";
+      const errMsg =
+        err instanceof WalletConnectionError
+          ? err.message
+          : err?.message || "Wallet connection failed.";
 
-      captureException(err, { context: "wallet_connect" });
+      const errCode =
+        err instanceof WalletConnectionError ? err.code : "UNKNOWN";
 
-      // Fallback for dev/demo if Freighter isn't installed
-      const fallbackAddr = "GCKFBEIYTKP6RCZX6LQZ4H3PWQ2VMZ7NDLT3WA";
+      captureException(err, { context: "wallet_connect", code: errCode });
+
+      // Clear any stored address — do NOT fall back to a fake address
+      if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
+        try {
+          localStorage.removeItem(STORAGE_WALLET_KEY);
+        } catch {
+          // ignore
+        }
+      }
+
       set({
-        wallet: "connected",
-        address: fallbackAddr,
+        wallet: "rejected",
+        address: null,
         walletError: errMsg,
       });
 
-      identifyUser(fallbackAddr);
-      trackEvent("wallet_connected_fallback", { address: fallbackAddr, originalError: errMsg });
+      trackEvent("wallet_connect_failed", {
+        error_code: errCode,
+        error_message: errMsg,
+      });
     }
   },
 
   disconnect: () => {
     if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
-      try { localStorage.removeItem(STORAGE_WALLET_KEY); } catch {}
+      try {
+        localStorage.removeItem(STORAGE_WALLET_KEY);
+      } catch {
+        // ignore
+      }
     }
     set({ wallet: "disconnected", address: null, walletError: null });
     trackEvent("wallet_disconnected");
   },
 
-  loadDemoCircle: () => {
-    if (get().circle) return;
-    set({ circle: makeDemoCircle(), joined: true });
+  setActiveCircleId: (id: string) => {
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.setItem(SESSION_CIRCLE_KEY, id);
+      } catch {
+        // ignore
+      }
+    }
+    set({ activeCircleId: id });
   },
 
-  payShare: () =>
-    set((s) => {
-      if (!s.circle) return s;
-      trackEvent("contribution_made", {
-        circle_id: s.circle.id,
-        amount: s.circle.amount,
-        cycle_number: s.circle.currentCycle,
-      });
-      return {
-        circle: {
-          ...s.circle,
-          members: s.circle.members.map((m) =>
-            m.id === YOU_ID ? { ...m, status: "paid" as const } : m,
-          ),
-        },
-        balance: Math.max(0, s.balance - s.circle.amount),
-      };
-    }),
-
-  closeCycle: () =>
-    set((s) => {
-      if (!s.circle) return s;
-      const c = s.circle;
-      const recipient = c.members[c.currentSeat];
-      if (!recipient) return s;
-      const amount = c.amount * c.members.length;
-      const nextSeat = (c.currentSeat + 1) % c.members.length;
-
-      trackEvent("cycle_closed", {
-        circle_id: c.id,
-        cycle_number: c.currentCycle,
-        recipient: recipient.name,
-        amount,
-      });
-
-      return {
-        lastPayout: { recipient: recipient.name, amount, cycle: c.currentCycle },
-        circle: {
-          ...c,
-          currentCycle: c.currentCycle + 1,
-          currentSeat: nextSeat,
-          cutoff: Date.now() + 1000 * 60 * 60 * 24 * 7,
-          members: c.members.map((m) => ({
-            ...m,
-            status: "waiting" as const,
-            onTime: m.status === "paid" ? m.onTime + 1 : m.onTime,
-            lateCount: m.status === "late" ? m.lateCount + 1 : m.lateCount,
-          })),
-          history: [
-            ...c.history,
-            {
-              cycle: c.currentCycle,
-              recipient: recipient.name,
-              amount,
-              date: new Date().toLocaleDateString("en-GB", {
-                day: "numeric",
-                month: "short",
-              }),
-            },
-          ],
-        },
-      };
-    }),
-
+  setLastPayout: (payout) => set({ lastPayout: payout }),
   dismissPayout: () => set({ lastPayout: null }),
+
   finishOnboarding: () => {
     set({ onboardingDone: true });
     trackEvent("onboarding_completed");

@@ -1,26 +1,28 @@
 import { useEffect, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { useRotera } from "@/store/useRotera";
-import { countdown, formatAmount, potTotal, YOU_ID } from "@/lib/rotera";
+import { countdown, formatAmount } from "@/lib/rotera";
 import {
   useCircleState,
   useContributeMutation,
   useCloseCycleMutation,
+  useWithdrawDepositMutation,
+  stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/circle")({
   head: () => ({
     meta: [
-      { title: "Sunday Six — your circle | Rotera" },
+      { title: "Your circle | Rotera" },
       {
         name: "description",
         content:
           "Live view of your savings circle: this cycle's contribution, the countdown to cutoff, who has paid, whose turn is next, and one tap to pay your share.",
       },
-      { property: "og:title", content: "Sunday Six — your circle | Rotera" },
+      { property: "og:title", content: "Your circle | Rotera" },
       {
         property: "og:description",
         content: "Who has paid, who's next, and the countdown to this week's cutoff.",
@@ -32,19 +34,19 @@ export const Route = createFileRoute("/circle")({
 
 function Dashboard() {
   const {
-    circle: storeCircle,
     wallet,
-    loadDemoCircle,
+    address,
+    activeCircleId: circleId,
     lastPayout,
     dismissPayout,
     onboardingDone,
   } = useRotera();
 
-  const { data: chainCircle } = useCircleState("sunday-six");
-  const circle = chainCircle || storeCircle;
+  const { data: circle, isLoading, isError } = useCircleState(circleId);
 
   const contributeMutation = useContributeMutation();
   const closeCycleMutation = useCloseCycleMutation();
+  const withdrawMutation = useWithdrawDepositMutation();
 
   const [now, setNow] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
@@ -55,7 +57,7 @@ function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
-  if (!circle) {
+  if (!circleId || (!circle && !isLoading)) {
     return (
       <div className="mx-auto max-w-3xl px-5 py-20 text-center">
         <Roundtable
@@ -71,8 +73,8 @@ function Dashboard() {
         />
         <h1 className="mt-6 text-3xl font-semibold">No circles yet</h1>
         <p className="mx-auto mt-3 max-w-md text-muted-foreground">
-          Create one for a group you already save with, or paste an invite link someone
-          sent you.
+          Create a circle or open the invite link someone sent you. Your circle data
+          lives on Stellar — connect a wallet to see your circles.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link
@@ -81,41 +83,88 @@ function Dashboard() {
           >
             Start a circle
           </Link>
-          <button
-            onClick={loadDemoCircle}
+          <Link
+            to="/join"
             className="rounded-md border border-border bg-chalk px-5 py-3 font-medium transition-colors duration-200 hover:bg-parchment"
           >
-            Open the Sunday Six demo
-          </button>
+            Open an invite link
+          </Link>
         </div>
+        {isError && (
+          <p className="mt-6 text-sm text-rust">
+            Could not load circle from chain. Check your connection and contract configuration.
+          </p>
+        )}
       </div>
     );
   }
 
-  const you = circle.members.find((m) => m.id === YOU_ID);
-  const recipient = circle.members[circle.currentSeat];
-  const yourTurn = recipient?.id === YOU_ID;
-  const recipientLabel = yourTurn ? "you" : (recipient?.name ?? "the next seat");
-  const paidCount = circle.members.filter((m) => m.status === "paid").length;
-  const seats = circle.members.map((m) => ({
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-6xl px-5 py-20 text-center">
+        <div className="mx-auto h-48 w-48 animate-pulse rounded-full bg-border" />
+        <p className="mt-8 text-muted-foreground">Loading circle from Stellar…</p>
+      </div>
+    );
+  }
+
+  if (!circle) return null;
+
+  // Map on-chain members to display format
+  const members = circle.payout_order.map((addr, i) => {
+    const ms = circle.member_states.get(addr);
+    const cycleIdx = circle.current_cycle - 1;
+    const currentCycleRecord =
+      circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
+    const paid = currentCycleRecord?.contributions.get(addr) ?? false;
+    const isLate = !paid && now !== null && now / 1000 > circle.cycle_deadline;
+
+    return {
+      id: addr,
+      name: truncateAddr(addr),
+      address: truncateAddr(addr),
+      status: paid ? ("paid" as const) : isLate ? ("late" as const) : ("waiting" as const),
+      onTime: ms ? (circle.cycles.length - ms.missed_cycles) : 0,
+      lateCount: ms?.missed_cycles ?? 0,
+      debt: ms?.debt ?? BigInt(0),
+    };
+  });
+
+  const currentSeat = (circle.current_cycle - 1) % circle.member_count;
+  const recipient = members[currentSeat];
+  const isMyTurn = recipient?.id === address;
+  const you = address ? members.find((m) => m.id === address) : null;
+  const paidCount = members.filter((m) => m.status === "paid").length;
+
+  const seats = members.map((m) => ({
     id: m.id,
     name: m.name,
     status: m.status,
   }));
 
+  const cutoffMs = circle.cycle_deadline * 1000; // convert from seconds
+  const contributionXlm = stroopsToXlm(circle.contribution_amount);
+  const potXlm = contributionXlm * circle.member_count;
+
+  const cadenceLabel =
+    circle.cycle_length_days === 7
+      ? "Weekly"
+      : circle.cycle_length_days === 14
+        ? "Biweekly"
+        : circle.cycle_length_days === 30
+          ? "Monthly"
+          : `${circle.cycle_length_days}-day`;
+
   async function handlePay() {
     if (wallet !== "connected") {
-      setPayError(
-        "Your wallet isn't connected. Connect it from the top right, then pay your share.",
-      );
+      setPayError("Your wallet isn't connected. Connect it from the top right, then pay your share.");
       return;
     }
     setPayError(null);
     try {
       await contributeMutation.mutateAsync({
-        circleId: circle.id,
-        amount: circle.amount,
-        cycleNumber: circle.currentCycle,
+        circleId: circleId!,
+        cycleNumber: circle!.current_cycle,
       });
     } catch (err: any) {
       setPayError(err?.message || "Contribution transaction failed.");
@@ -123,18 +172,35 @@ function Dashboard() {
   }
 
   async function handleCloseCycle() {
+    if (wallet !== "connected") {
+      setPayError("Connect your wallet to trigger cycle close.");
+      return;
+    }
     setPayError(null);
     try {
       await closeCycleMutation.mutateAsync({
-        circleId: circle.id,
-        cycleNumber: circle.currentCycle,
+        circleId: circleId!,
+        cycleNumber: circle!.current_cycle,
         recipientName: recipient?.name || "Member",
-        amountPaidOut: potTotal(circle),
+        amountXlm: potXlm,
       });
     } catch (err: any) {
       setPayError(err?.message || "Keeper close_cycle transaction failed.");
     }
   }
+
+  async function handleWithdrawDeposit() {
+    if (wallet !== "connected") return;
+    setPayError(null);
+    try {
+      await withdrawMutation.mutateAsync({ circleId: circleId! });
+    } catch (err: any) {
+      setPayError(err?.message || "Deposit withdrawal failed.");
+    }
+  }
+
+  const deadlinePassed =
+    now !== null && circle.cycle_deadline > 0 && now / 1000 > circle.cycle_deadline;
 
   return (
     <>
@@ -144,7 +210,10 @@ function Dashboard() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="num text-xs uppercase tracking-[0.18em] text-verdigris">
-              Cycle {circle.currentCycle} of {circle.members.length} · {circle.cadence}
+              {circle.status === "Completed"
+                ? "Completed"
+                : `Cycle ${circle.current_cycle} of ${circle.member_count}`}{" "}
+              · {cadenceLabel} · #{circleId}
             </p>
             <h1 className="mt-2 text-4xl font-semibold">{circle.name}</h1>
           </div>
@@ -160,31 +229,67 @@ function Dashboard() {
           <div>
             <Roundtable
               seats={seats}
-              currentSeat={circle.currentSeat}
+              currentSeat={currentSeat}
               size={380}
-              caption={`${yourTurn ? "It's your turn — you receive" : `${recipient?.name} receives`} ${formatAmount(potTotal(circle))} XLM this cycle`}
+              caption={
+                circle.status === "Completed"
+                  ? "Circle completed — all payouts done"
+                  : `${isMyTurn ? "It's your turn — you receive" : `${recipient?.name} receives`} ${formatAmount(potXlm)} XLM this cycle`
+              }
             />
           </div>
 
           <div className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-3">
-              <Stat label="Your share" value={`${formatAmount(circle.amount)} XLM`} />
+              <Stat label="Your share" value={`${formatAmount(contributionXlm)} XLM`} />
               <Stat
-                label="Cutoff in"
-                value={now === null ? "—" : countdown(circle.cutoff, now)}
+                label={deadlinePassed ? "Deadline passed" : "Cutoff in"}
+                value={
+                  deadlinePassed
+                    ? "Pending close"
+                    : now === null || circle.cycle_deadline === 0
+                      ? "—"
+                      : countdown(cutoffMs, now)
+                }
               />
-              <Stat label="Paid so far" value={`${paidCount} of ${circle.members.length}`} />
+              <Stat label="Paid so far" value={`${paidCount} of ${members.length}`} />
             </div>
 
+            {/* Pay / Close / Withdraw panel */}
             <div className="rounded-xl border border-border bg-chalk p-5">
-              {you?.status === "paid" ? (
+              {circle.status === "Completed" ? (
                 <div>
                   <p className="font-medium text-verdigris">
-                    Your 200 XLM is in for this cycle.
+                    This circle has completed all {circle.member_count} cycles.
+                  </p>
+                  {you && you.debt === BigInt(0) && !circle.member_states.get(address || "")?.deposit_withdrawn && (
+                    <>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        You can withdraw your {stroopsToXlm(circle.deposit_amount)} XLM deposit.
+                      </p>
+                      <button
+                        onClick={() => void handleWithdrawDeposit()}
+                        disabled={withdrawMutation.isPending}
+                        className="mt-4 rounded-md bg-brass px-5 py-3 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
+                      >
+                        {withdrawMutation.isPending ? "Processing…" : "Withdraw deposit"}
+                      </button>
+                    </>
+                  )}
+                  {you && you.debt > BigInt(0) && (
+                    <p className="mt-2 text-sm text-rust">
+                      You have {stroopsToXlm(you.debt)} XLM in outstanding debt — deposit is withheld.
+                    </p>
+                  )}
+                </div>
+              ) : deadlinePassed ? (
+                <div>
+                  <p className="font-medium">
+                    The cutoff has passed — ready to close cycle {circle.current_cycle}.
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Nothing else to do until {recipientLabel} {yourTurn ? "are" : "is"}{" "}
-                    paid out and the ring turns.
+                    Any wallet can trigger this. The contract will transfer {formatAmount(paidCount * contributionXlm)} XLM
+                    (what was contributed) to {recipient?.name || "the recipient"}.
                   </p>
                   <button
                     onClick={() => void handleCloseCycle()}
@@ -192,47 +297,74 @@ function Dashboard() {
                     className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment disabled:opacity-60"
                   >
                     {closeCycleMutation.isPending
-                      ? "Executing Soroban keeper close_cycle…"
-                      : `Close cycle and pay out ${recipientLabel}`}
+                      ? "Executing close_cycle on Stellar…"
+                      : `Close cycle and pay out ${recipient?.name || "recipient"}`}
                   </button>
+                </div>
+              ) : you?.status === "paid" ? (
+                <div>
+                  <p className="font-medium text-verdigris">
+                    Your {formatAmount(contributionXlm)} XLM is in for this cycle.
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Nothing else to do until {isMyTurn ? "you are" : `${recipient?.name} is`} paid out and the ring turns.
+                  </p>
+                  {deadlinePassed && (
+                    <button
+                      onClick={() => void handleCloseCycle()}
+                      disabled={closeCycleMutation.isPending}
+                      className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment disabled:opacity-60"
+                    >
+                      {closeCycleMutation.isPending
+                        ? "Executing Soroban keeper close_cycle…"
+                        : `Close cycle and pay out ${recipient?.name || "recipient"}`}
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div>
                   <p className="font-medium">
-                    {formatAmount(circle.amount)} XLM due before the cutoff
+                    {formatAmount(contributionXlm)} XLM due before the cutoff
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {yourTurn
-                      ? "It goes into your own payout this cycle — Rotera never holds it."
-                      : `Goes straight to ${recipient?.name}'s payout — Rotera never holds it.`}
+                    {isMyTurn
+                      ? "It goes into your own payout this cycle — the contract holds it until close."
+                      : `Goes straight to ${recipient?.name}'s payout when the cycle closes.`}
                   </p>
                   <button
                     onClick={() => void handlePay()}
-                    disabled={contributeMutation.isPending}
+                    disabled={contributeMutation.isPending || wallet !== "connected"}
                     className="mt-4 w-full rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60 sm:w-auto"
                   >
                     {contributeMutation.isPending
                       ? "Approve it in your wallet…"
                       : "Pay my share"}
                   </button>
-                  {payError && (
-                    <p
-                      role="alert"
-                      className="mt-3 rounded-md border border-rust/40 bg-rust/10 p-3 text-sm text-rust"
-                    >
-                      {payError}
+                  {wallet !== "connected" && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Connect your wallet to pay.
                     </p>
                   )}
                 </div>
               )}
+
+              {payError && (
+                <p
+                  role="alert"
+                  className="mt-3 rounded-md border border-rust/40 bg-rust/10 p-3 text-sm text-rust"
+                >
+                  {payError}
+                </p>
+              )}
             </div>
 
+            {/* Member list */}
             <div className="overflow-hidden rounded-xl border border-border bg-chalk">
               <h2 className="border-b border-border px-5 py-3.5 text-sm font-semibold">
                 This cycle
               </h2>
               <ul>
-                {circle.members.map((m, i) => (
+                {members.map((m, i) => (
                   <li
                     key={m.id}
                     className="flex items-center gap-3 border-b border-border/60 px-5 py-3.5 last:border-0"
@@ -241,14 +373,21 @@ function Dashboard() {
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     <span className="font-medium">{m.name}</span>
-                    {i === circle.currentSeat && (
+                    {m.id === address && (
+                      <span className="rounded-full bg-verdigris/10 px-2 py-0.5 text-xs text-verdigris">
+                        you
+                      </span>
+                    )}
+                    {i === currentSeat && (
                       <span className="rounded-full bg-brass/20 px-2 py-0.5 text-xs font-medium text-ink">
                         their turn
                       </span>
                     )}
-                    <span className="num ml-auto text-sm text-muted-foreground">
-                      {m.address}
-                    </span>
+                    {m.debt > BigInt(0) && (
+                      <span className="text-xs text-rust">
+                        {stroopsToXlm(m.debt)} XLM debt
+                      </span>
+                    )}
                     <StatusPill status={m.status} />
                   </li>
                 ))}
@@ -258,6 +397,7 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Payout modal */}
       <AnimatePresence>
         {lastPayout && (
           <motion.div
@@ -282,11 +422,10 @@ function Dashboard() {
               </p>
               <p className="num mt-1 text-sm text-muted-foreground">XLM</p>
               <h2 className="mt-5 text-2xl font-semibold">
-                {lastPayout.recipient} received this week's payout
+                {lastPayout.recipient} received this cycle's payout
               </h2>
               <p className="mt-2 text-muted-foreground">
-                The ring has turned. Next up is{" "}
-                {circle.members[circle.currentSeat]?.name}.
+                The ring has turned. Funds moved on Stellar — check the history for the transaction.
               </p>
               <button
                 onClick={dismissPayout}
@@ -319,6 +458,13 @@ function StatusPill({ status }: { status: "paid" | "waiting" | "late" }) {
   } as const;
   const [text, cls] = map[status];
   return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${cls}`}>{text}</span>
+    <span className={`ml-auto rounded-full px-2.5 py-1 text-xs font-medium ${cls}`}>
+      {text}
+    </span>
   );
+}
+
+function truncateAddr(addr: string): string {
+  if (!addr || addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
