@@ -20,6 +20,7 @@ pub enum DataKey {
     Circle(u64),                // circle_id -> CircleState
     NextCircleId,
     MemberCircles(Address),     // address -> Vec<circle_id>
+    CircleDuration(u64),        // circle_id -> u64 duration in seconds
 }
 
 // ─── The Contract ───────────────────────────────────────────────────────────
@@ -45,22 +46,24 @@ impl RoteraContract {
         member_count: u32,
         payout_order: PayoutOrderType,
         xlm_token: Address,
-    ) -> u64 {
+    ) -> Result<u64, RoteraError> {
         organizer.require_auth();
 
         // Validate inputs
         if contribution_amount <= 0 {
-            panic!("contribution_amount must be positive");
+            return Err(RoteraError::InvalidContributionAmount);
         }
-        if member_count < 3 || member_count > 12 {
-            panic!("member_count must be between 3 and 12");
-        }
-        if cycle_length_days == 0 {
-            panic!("cycle_length_days must be positive");
-        }
-
         // Deposit = 10% of one contribution
         let deposit_amount = contribution_amount / 10;
+        if deposit_amount <= 0 {
+            return Err(RoteraError::InvalidContributionAmount);
+        }
+        if member_count < 3 || member_count > 12 {
+            return Err(RoteraError::InvalidMemberCount);
+        }
+        if cycle_length_days == 0 {
+            return Err(RoteraError::InvalidCycleLength);
+        }
 
         let circle = CircleState {
             id: 0, // set below
@@ -95,7 +98,76 @@ impl RoteraContract {
             organizer,
         );
 
-        circle_id
+        Ok(circle_id)
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // create_circle_with_duration
+    // Create circle with explicit duration in seconds (unambiguous, no dual-mode branch).
+    // Allows exact weekly (604800s), biweekly (1209600s), monthly (2592000s) cadences.
+    // ════════════════════════════════════════════════════════════════════════
+    pub fn create_circle_with_duration(
+        env: Env,
+        organizer: Address,
+        name: Bytes,
+        contribution_amount: i128,
+        cycle_duration_seconds: u64,
+        member_count: u32,
+        payout_order: PayoutOrderType,
+        xlm_token: Address,
+    ) -> Result<u64, RoteraError> {
+        organizer.require_auth();
+
+        // Validate inputs
+        if contribution_amount <= 0 {
+            return Err(RoteraError::InvalidContributionAmount);
+        }
+        let deposit_amount = contribution_amount / 10;
+        if deposit_amount <= 0 {
+            return Err(RoteraError::InvalidContributionAmount);
+        }
+        if member_count < 3 || member_count > 12 {
+            return Err(RoteraError::InvalidMemberCount);
+        }
+        if cycle_duration_seconds == 0 {
+            return Err(RoteraError::InvalidCycleLength);
+        }
+
+        let circle = CircleState {
+            id: 0,
+            name,
+            organizer: organizer.clone(),
+            contribution_amount,
+            deposit_amount,
+            cycle_length_days: (cycle_duration_seconds / 86400).max(1) as u32,
+            member_count,
+            status: CircleStatus::Filling,
+            current_cycle: 0,
+            cycle_deadline: 0,
+            payout_order_type: payout_order,
+            payout_order: Vec::new(&env),
+            member_states: Map::new(&env),
+            cycles: Vec::new(&env),
+            created_at: env.ledger().timestamp(),
+            activated_at: 0,
+            randomness_seed: BytesN::from_array(&env, &[0u8; 32]),
+            xlm_token,
+        };
+
+        let circle_id = Self::next_circle_id(&env);
+        let mut circle = circle;
+        circle.id = circle_id;
+
+        env.storage().persistent().set(&DataKey::Circle(circle_id), &circle);
+        env.storage().persistent().set(&DataKey::CircleDuration(circle_id), &cycle_duration_seconds);
+        Self::add_member_circle(&env, &organizer, circle_id);
+
+        env.events().publish(
+            (symbol_short!("created"), circle_id),
+            organizer,
+        );
+
+        Ok(circle_id)
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -108,24 +180,24 @@ impl RoteraContract {
         env: Env,
         member: Address,
         circle_id: u64,
-    ) {
+    ) -> Result<(), RoteraError> {
         member.require_auth();
 
-        let mut circle = Self::get_circle_or_panic(&env, circle_id);
+        let mut circle = Self::get_circle_or_err(&env, circle_id)?;
 
         if circle.status != CircleStatus::Filling {
-            panic!("circle is not accepting new members");
+            return Err(RoteraError::CircleNotFilling);
         }
 
         // Check not already joined
         if circle.member_states.contains_key(member.clone()) {
-            panic!("you have already joined this circle");
+            return Err(RoteraError::AlreadyJoined);
         }
 
         // Check seat availability
         let current_seats = circle.payout_order.len();
         if current_seats >= circle.member_count {
-            panic!("this circle is already full");
+            return Err(RoteraError::CircleAlreadyFull);
         }
 
         // Transfer deposit from member to this contract
@@ -156,7 +228,7 @@ impl RoteraContract {
             circle.status = CircleStatus::Active;
             circle.activated_at = env.ledger().timestamp();
             circle.current_cycle = 1;
-            circle.cycle_deadline = Self::calculate_deadline(&env, circle.cycle_length_days);
+            circle.cycle_deadline = Self::calculate_circle_deadline(&env, circle_id, circle.cycle_length_days);
 
             // If RandomPending, shuffle payout_order using ledger timestamp+sequence as seed
             if circle.payout_order_type == PayoutOrderType::RandomPending {
@@ -218,6 +290,8 @@ impl RoteraContract {
             (symbol_short!("joined"), circle_id),
             member,
         );
+
+        Ok(())
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -229,21 +303,21 @@ impl RoteraContract {
         env: Env,
         member: Address,
         circle_id: u64,
-    ) {
+    ) -> Result<(), RoteraError> {
         member.require_auth();
 
-        let mut circle = Self::get_circle_or_panic(&env, circle_id);
+        let mut circle = Self::get_circle_or_err(&env, circle_id)?;
 
         if circle.status != CircleStatus::Active {
-            panic!("circle is not active");
+            return Err(RoteraError::CircleNotActive);
         }
         if env.ledger().timestamp() > circle.cycle_deadline {
-            panic!("this cycle's deadline has passed — call close_cycle first");
+            return Err(RoteraError::DeadlinePassed);
         }
 
         // Verify member is in the circle
         let mut state = circle.member_states.get(member.clone())
-            .unwrap_or_else(|| panic!("you are not a member of this circle"));
+            .ok_or(RoteraError::NotAMemberOfCircle)?;
 
         // Check not already paid this cycle
         let cycle_idx = (circle.current_cycle - 1) as usize;
@@ -253,7 +327,7 @@ impl RoteraContract {
             let already_paid = record.contributions.get(member.clone())
                 .unwrap_or(false);
             if already_paid {
-                panic!("you have already contributed this cycle");
+                return Err(RoteraError::AlreadyContributed);
             }
         }
 
@@ -308,6 +382,8 @@ impl RoteraContract {
             (symbol_short!("contrib"), circle_id),
             (member, circle.current_cycle),
         );
+
+        Ok(())
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -317,19 +393,19 @@ impl RoteraContract {
     // and advances to the next cycle (or completes the circle).
     // The contract enforces deadline — the frontend is never trusted.
     // ════════════════════════════════════════════════════════════════════════
-    pub fn close_cycle(env: Env, caller: Address, circle_id: u64) {
+    pub fn close_cycle(env: Env, caller: Address, circle_id: u64) -> Result<(), RoteraError> {
         // Permissionless: any caller can trigger this after the deadline.
         // We still require auth to prevent anonymous abuse of gas,
         // but any valid account qualifies.
         caller.require_auth();
 
-        let mut circle = Self::get_circle_or_panic(&env, circle_id);
+        let mut circle = Self::get_circle_or_err(&env, circle_id)?;
 
         if circle.status != CircleStatus::Active {
-            panic!("circle is not active");
+            return Err(RoteraError::CircleNotActive);
         }
         if env.ledger().timestamp() < circle.cycle_deadline {
-            panic!("cycle deadline has not passed yet");
+            return Err(RoteraError::DeadlineNotPassed);
         }
 
         let cycle_idx = (circle.current_cycle - 1) as u32;
@@ -374,28 +450,34 @@ impl RoteraContract {
                 &recipient,
                 &amount_paid_out,
             );
-        }
 
-        // Mark recipient as paid
-        let mut rs = circle.member_states.get(recipient.clone()).unwrap();
-        rs.has_received_payout = true;
-        circle.member_states.set(recipient.clone(), rs);
+            // Mark recipient as paid ONLY when funds were actually paid out
+            let mut rs = circle.member_states.get(recipient.clone()).unwrap();
+            rs.has_received_payout = true;
+            circle.member_states.set(recipient.clone(), rs);
+        }
 
         // Update cycle record
         let mut new_cycles: Vec<CycleRecord> = Vec::new(&env);
         let mut updated = false;
         for (i, mut record) in circle.cycles.iter().enumerate() {
             if i == cycle_idx as usize {
-                record.closed = true;
-                record.closed_at = env.ledger().timestamp();
-                record.amount_paid_out = amount_paid_out;
+                if amount_paid_out > 0 {
+                    record.closed = true;
+                    record.closed_at = env.ledger().timestamp();
+                    record.amount_paid_out = amount_paid_out;
+                } else {
+                    record.closed = false;
+                    record.closed_at = 0;
+                    record.amount_paid_out = 0;
+                }
                 new_cycles.push_back(record);
                 updated = true;
             } else {
                 new_cycles.push_back(record);
             }
         }
-        // If no record existed (no contributions), create a closed empty one
+        // If no record existed (no contributions), create a cycle record
         if !updated {
             let contributions: Map<Address, bool> = Map::new(&env);
             new_cycles.push_back(CycleRecord {
@@ -403,19 +485,24 @@ impl RoteraContract {
                 recipient: recipient.clone(),
                 contributions,
                 amount_paid_out: 0,
-                closed: true,
-                closed_at: env.ledger().timestamp(),
+                closed: amount_paid_out > 0,
+                closed_at: if amount_paid_out > 0 { env.ledger().timestamp() } else { 0 },
             });
         }
         circle.cycles = new_cycles;
 
-        // Advance or complete
+        // Advance or retry
         let completed_cycle = circle.current_cycle;
-        if circle.current_cycle >= circle.member_count {
-            circle.status = CircleStatus::Completed;
+        if amount_paid_out > 0 {
+            if circle.current_cycle >= circle.member_count {
+                circle.status = CircleStatus::Completed;
+            } else {
+                circle.current_cycle += 1;
+                circle.cycle_deadline = Self::calculate_circle_deadline(&env, circle_id, circle.cycle_length_days);
+            }
         } else {
-            circle.current_cycle += 1;
-            circle.cycle_deadline = Self::calculate_deadline(&env, circle.cycle_length_days);
+            // When zero contributions occur, extend deadline and retry current cycle for the same recipient
+            circle.cycle_deadline = Self::calculate_circle_deadline(&env, circle_id, circle.cycle_length_days);
         }
 
         env.storage().persistent().set(&DataKey::Circle(circle_id), &circle);
@@ -424,6 +511,8 @@ impl RoteraContract {
             (symbol_short!("closed"), circle_id),
             (completed_cycle, recipient, amount_paid_out),
         );
+
+        Ok(())
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -431,24 +520,24 @@ impl RoteraContract {
     // Member withdraws their held deposit after circle completion.
     // Blocked if member has outstanding debt.
     // ════════════════════════════════════════════════════════════════════════
-    pub fn withdraw_deposit(env: Env, member: Address, circle_id: u64) {
+    pub fn withdraw_deposit(env: Env, member: Address, circle_id: u64) -> Result<(), RoteraError> {
         member.require_auth();
 
-        let mut circle = Self::get_circle_or_panic(&env, circle_id);
+        let mut circle = Self::get_circle_or_err(&env, circle_id)?;
 
         if circle.status != CircleStatus::Completed {
-            panic!("circle has not completed yet");
+            return Err(RoteraError::CircleNotCompleted);
         }
 
         let mut state = circle.member_states.get(member.clone())
-            .unwrap_or_else(|| panic!("not a member of this circle"));
+            .ok_or(RoteraError::NotAMemberOfCircle)?;
 
         if state.debt > 0 {
-            panic!("you have outstanding debt — deposit is withheld until resolved");
+            return Err(RoteraError::OutstandingDebt);
         }
 
         if state.deposit_withdrawn {
-            panic!("deposit already withdrawn");
+            return Err(RoteraError::DepositAlreadyWithdrawn);
         }
 
         // Transfer deposit back from contract to member
@@ -467,6 +556,8 @@ impl RoteraContract {
             (symbol_short!("deposit"), circle_id),
             (member, state.deposit_amount),
         );
+
+        Ok(())
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -475,24 +566,24 @@ impl RoteraContract {
     // Reduces debt by the paid amount. Prevents overpayment.
     // Once debt reaches 0 and circle is Completed, deposit becomes withdrawable.
     // ════════════════════════════════════════════════════════════════════════
-    pub fn repay_debt(env: Env, member: Address, circle_id: u64, amount: i128) {
+    pub fn repay_debt(env: Env, member: Address, circle_id: u64, amount: i128) -> Result<(), RoteraError> {
         member.require_auth();
 
         if amount <= 0 {
-            panic!("repayment amount must be positive");
+            return Err(RoteraError::InvalidRepaymentAmount);
         }
 
-        let mut circle = Self::get_circle_or_panic(&env, circle_id);
+        let mut circle = Self::get_circle_or_err(&env, circle_id)?;
 
         let mut state = circle.member_states.get(member.clone())
-            .unwrap_or_else(|| panic!("not a member of this circle"));
+            .ok_or(RoteraError::NotAMemberOfCircle)?;
 
         if state.debt == 0 {
-            panic!("you have no outstanding debt");
+            return Err(RoteraError::NoOutstandingDebt);
         }
 
         if amount > state.debt {
-            panic!("repayment exceeds outstanding debt — overpayment not allowed");
+            return Err(RoteraError::OverpaymentNotAllowed);
         }
 
         // Transfer real XLM from member to contract
@@ -512,18 +603,20 @@ impl RoteraContract {
             (symbol_short!("repaid"), circle_id),
             (member, amount, state.debt),
         );
+
+        Ok(())
     }
 
     // ════════════════════════════════════════════════════════════════════════
     // get_status / get_circle
     // Read circle state for the dashboard.
     // ════════════════════════════════════════════════════════════════════════
-    pub fn get_status(env: Env, circle_id: u64) -> CircleState {
-        Self::get_circle_or_panic(&env, circle_id)
+    pub fn get_status(env: Env, circle_id: u64) -> Result<CircleState, RoteraError> {
+        Self::get_circle_or_err(&env, circle_id)
     }
 
-    pub fn get_circle(env: Env, circle_id: u64) -> CircleState {
-        Self::get_circle_or_panic(&env, circle_id)
+    pub fn get_circle(env: Env, circle_id: u64) -> Result<CircleState, RoteraError> {
+        Self::get_circle_or_err(&env, circle_id)
     }
 
     pub fn get_member_circles(env: Env, member: Address) -> Vec<u64> {
@@ -536,9 +629,9 @@ impl RoteraContract {
     // Internal helpers
     // ════════════════════════════════════════════════════════════════════════
 
-    fn get_circle_or_panic(env: &Env, circle_id: u64) -> CircleState {
+    fn get_circle_or_err(env: &Env, circle_id: u64) -> Result<CircleState, RoteraError> {
         env.storage().persistent().get(&DataKey::Circle(circle_id))
-            .unwrap_or_else(|| panic!("circle not found"))
+            .ok_or(RoteraError::CircleNotFound)
     }
 
     fn next_circle_id(env: &Env) -> u64 {
@@ -559,6 +652,14 @@ impl RoteraContract {
         }
         circles.push_back(circle_id);
         env.storage().persistent().set(&key, &circles);
+    }
+
+    fn calculate_circle_deadline(env: &Env, circle_id: u64, fallback_days: u32) -> u64 {
+        if let Some(duration) = env.storage().persistent().get::<_, u64>(&DataKey::CircleDuration(circle_id)) {
+            env.ledger().timestamp() + duration
+        } else {
+            Self::calculate_deadline(env, fallback_days)
+        }
     }
 
     fn calculate_deadline(env: &Env, cycle_length_days: u32) -> u64 {

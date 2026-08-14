@@ -122,7 +122,7 @@ fn test_create_circle_success() {
 }
 
 #[test]
-#[should_panic(expected = "member_count must be between 3 and 12")]
+#[should_panic(expected = "Error(Contract, #2)")]
 fn test_create_circle_too_few_members() {
     let (env, organizer, _) = setup_env();
     let client = deploy_contract(&env);
@@ -134,7 +134,7 @@ fn test_create_circle_too_few_members() {
 }
 
 #[test]
-#[should_panic(expected = "contribution_amount must be positive")]
+#[should_panic(expected = "Error(Contract, #1)")]
 fn test_create_circle_zero_amount() {
     let (env, organizer, _) = setup_env();
     let client = deploy_contract(&env);
@@ -142,6 +142,19 @@ fn test_create_circle_zero_amount() {
     let token = setup_token(&env, &admin);
     client.create_circle(
         &organizer, &circle_name(&env), &0, &7, &5u32, &PayoutOrderType::Manual, &token,
+    );
+}
+
+#[test]
+#[should_panic(expected = "Error(Contract, #1)")]
+fn test_create_circle_tiny_amount_zero_deposit_panics() {
+    let (env, organizer, _) = setup_env();
+    let client = deploy_contract(&env);
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    // 9 stroops / 10 = 0 deposit -> must fail with InvalidContributionAmount (Error #1)
+    client.create_circle(
+        &organizer, &circle_name(&env), &9, &7, &5u32, &PayoutOrderType::Manual, &token,
     );
 }
 
@@ -177,7 +190,7 @@ fn test_join_circle_partial_stays_filling() {
 }
 
 #[test]
-#[should_panic(expected = "you have already joined this circle")]
+#[should_panic(expected = "Error(Contract, #21)")]
 fn test_join_circle_double_join_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -189,7 +202,7 @@ fn test_join_circle_double_join_panics() {
 }
 
 #[test]
-#[should_panic(expected = "circle is not accepting new members")]
+#[should_panic(expected = "Error(Contract, #11)")]
 fn test_join_circle_full_circle_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -198,21 +211,20 @@ fn test_join_circle_full_circle_panics() {
     // Try to add a 6th member
     let extra = Address::generate(&env);
     let admin = Address::generate(&env);
-    fund_address(&env, &token, &admin, &extra, 100_0000000);
-    client.join_circle(&extra, &circle_id); // should panic: circle not in Filling status
+    fund_address(&env, &token, &admin, &extra, 1000_0000000);
+    client.join_circle(&extra, &circle_id); // circle already full -> CircleNotFilling (#11)
 }
 
 #[test]
 fn test_join_deposits_held_by_contract() {
     let (env, _, members) = setup_env();
-    let _client = deploy_contract(&env);
     let contract_addr = env.register(RoteraContract, ());
     let client = RoteraContractClient::new(&env, &contract_addr);
 
     let admin = Address::generate(&env);
     let token = setup_token(&env, &admin);
     let contribution_amount = 50_0000000i128;
-    let deposit_amount = contribution_amount / 10;
+    let deposit_amount = contribution_amount / 10; // 5_0000000
 
     for m in members.iter() {
         fund_address(&env, &token, &admin, &m, 1000_0000000);
@@ -229,12 +241,15 @@ fn test_join_deposits_held_by_contract() {
     );
 
     let token_client = TokenClient::new(&env, &token);
-    let before = token_client.balance(&contract_addr);
+    let contract_before = token_client.balance(&contract_addr);
 
-    client.join_circle(&members.get(0).unwrap(), &circle_id);
-    let after = token_client.balance(&contract_addr);
+    for m in members.iter() {
+        client.join_circle(&m, &circle_id);
+    }
 
-    assert_eq!(after - before, deposit_amount);
+    let contract_after = token_client.balance(&contract_addr);
+    let total_deposits = deposit_amount * members.len() as i128;
+    assert_eq!(contract_after - contract_before, total_deposits);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -256,7 +271,7 @@ fn test_contribute_records_payment() {
 }
 
 #[test]
-#[should_panic(expected = "you have already contributed this cycle")]
+#[should_panic(expected = "Error(Contract, #22)")]
 fn test_contribute_double_payment_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -268,7 +283,7 @@ fn test_contribute_double_payment_panics() {
 }
 
 #[test]
-#[should_panic(expected = "this cycle's deadline has passed")]
+#[should_panic(expected = "Error(Contract, #31)")]
 fn test_contribute_after_deadline_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -424,7 +439,7 @@ fn test_close_cycle_missed_payments_tracked() {
 }
 
 #[test]
-#[should_panic(expected = "cycle deadline has not passed yet")]
+#[should_panic(expected = "Error(Contract, #30)")]
 fn test_close_cycle_before_deadline_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -513,7 +528,7 @@ fn test_withdraw_deposit_after_completion() {
 }
 
 #[test]
-#[should_panic(expected = "circle has not completed yet")]
+#[should_panic(expected = "Error(Contract, #15)")]
 fn test_withdraw_deposit_before_completion_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -555,7 +570,7 @@ fn test_deposit_locked_while_debt_exists() {
 }
 
 #[test]
-#[should_panic(expected = "you have outstanding debt")]
+#[should_panic(expected = "Error(Contract, #40)")]
 fn test_withdraw_deposit_with_debt_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -583,7 +598,7 @@ fn test_withdraw_deposit_with_debt_panics() {
 }
 
 #[test]
-#[should_panic(expected = "deposit already withdrawn")]
+#[should_panic(expected = "Error(Contract, #41)")]
 fn test_withdraw_deposit_double_withdraw_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -651,7 +666,7 @@ fn test_random_ordering_assigned_at_activation() {
 // ════════════════════════════════════════════════════════════════════════════
 
 #[test]
-#[should_panic(expected = "circle is not active")]
+#[should_panic(expected = "Error(Contract, #12)")]
 fn test_contribute_inactive_circle_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -662,7 +677,7 @@ fn test_contribute_inactive_circle_panics() {
 }
 
 #[test]
-#[should_panic(expected = "circle is not active")]
+#[should_panic(expected = "Error(Contract, #12)")]
 fn test_close_cycle_inactive_circle_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -673,7 +688,7 @@ fn test_close_cycle_inactive_circle_panics() {
 }
 
 #[test]
-#[should_panic(expected = "circle not found")]
+#[should_panic(expected = "Error(Contract, #10)")]
 fn test_get_nonexistent_circle_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -994,7 +1009,7 @@ fn setup_circle_with_debt(
     let admin = Address::generate(env);
     let token = setup_token(env, &admin);
     let contribution_amount = 50_0000000i128;
-    let deposit_amount = contribution_amount / 10;
+    let _deposit_amount = contribution_amount / 10;
 
     for m in members.iter() {
         fund_address(env, &token, &admin, &m, 1_000_0000000);
@@ -1103,7 +1118,7 @@ fn test_repay_debt_transfers_xlm_to_contract() {
 }
 
 #[test]
-#[should_panic(expected = "repayment exceeds outstanding debt")]
+#[should_panic(expected = "Error(Contract, #5)")]
 fn test_repay_debt_overpayment_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -1115,7 +1130,7 @@ fn test_repay_debt_overpayment_panics() {
 }
 
 #[test]
-#[should_panic(expected = "you have no outstanding debt")]
+#[should_panic(expected = "Error(Contract, #6)")]
 fn test_repay_debt_no_debt_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -1127,7 +1142,7 @@ fn test_repay_debt_no_debt_panics() {
 }
 
 #[test]
-#[should_panic(expected = "not a member of this circle")]
+#[should_panic(expected = "Error(Contract, #23)")]
 fn test_repay_debt_unauthorized_member_panics() {
     let (env, _, members) = setup_env();
     let client = deploy_contract(&env);
@@ -1201,14 +1216,10 @@ fn test_repay_debt_full_then_withdraw_deposit() {
 /// Regression test for production bug: WasmVm InvalidAction on contribute.
 ///
 /// Root cause was the frontend passing a stale/null Zustand `circleId` instead
-/// of the correctly-resolved `effectiveCircleId`. The contract's `get_circle_or_panic`
-/// calls `panic!("circle not found")` which compiles to the Wasm `unreachable`
-/// instruction — surfaced as `Error(WasmVm, InvalidAction)` in Soroban simulation.
-///
-/// This test documents and locks that behavior: any call to `contribute` with a
-/// non-existent circle_id MUST panic.
+/// of the correctly-resolved `effectiveCircleId`. The contract's `get_circle_or_err`
+/// returns `RoteraError::CircleNotFound` (Contract Error #10) which fails the call.
 #[test]
-#[should_panic(expected = "circle not found")]
+#[should_panic(expected = "Error(Contract, #10)")]
 fn test_contribute_nonexistent_circle_panics() {
     let env = Env::default();
     env.mock_all_auths();
@@ -1221,7 +1232,131 @@ fn test_contribute_nonexistent_circle_panics() {
     let contract_id = env.register(RoteraContract, ());
     let client = RoteraContractClient::new(&env, &contract_id);
 
-    // Circle ID 9999 was never created — must panic with "circle not found"
+    // Circle ID 9999 was never created — must return CircleNotFound (#10)
     client.contribute(&member, &9999u64);
 }
+
+#[test]
+fn test_create_circle_with_duration_gives_exact_deadline() {
+    // Issue 2: create_circle_with_duration with 604800 (weekly = 7 days) produces exact now + 604800 deadline
+    let (env, _, members) = setup_env();
+    let client = deploy_contract(&env);
+
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    let contribution_amount = 50_0000000i128;
+
+    for m in members.iter() {
+        fund_address(&env, &token, &admin, &m, 1000_0000000);
+    }
+
+    let now_before = env.ledger().timestamp();
+    let weekly_seconds: u64 = 604_800; // 7 days in seconds
+
+    let circle_id = client.create_circle_with_duration(
+        &members.get(0).unwrap(),
+        &circle_name(&env),
+        &contribution_amount,
+        &weekly_seconds,
+        &(members.len()),
+        &PayoutOrderType::Manual,
+        &token,
+    );
+
+    for m in members.iter() {
+        client.join_circle(&m, &circle_id);
+    }
+
+    let state = client.get_status(&circle_id);
+    assert_eq!(state.status, CircleStatus::Active);
+    assert_eq!(
+        state.cycle_deadline,
+        now_before + weekly_seconds,
+        "weekly cycle_duration_seconds=604800 gives exact deadline: now + 604800"
+    );
+}
+
+#[test]
+fn test_close_cycle_zero_contributions_does_not_consume_turn() {
+    let (env, _, members) = setup_env();
+    let contract_addr = env.register(RoteraContract, ());
+    let client = RoteraContractClient::new(&env, &contract_addr);
+
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    let contribution_amount = 50_0000000i128;
+
+    for m in members.iter() {
+        fund_address(&env, &token, &admin, &m, 1000_0000000);
+    }
+
+    let circle_id = client.create_circle(
+        &members.get(0).unwrap(),
+        &circle_name(&env),
+        &contribution_amount,
+        &7u32,
+        &(members.len()),
+        &PayoutOrderType::Manual,
+        &token,
+    );
+
+    for m in members.iter() {
+        client.join_circle(&m, &circle_id);
+    }
+
+    let recipient = members.get(0).unwrap();
+    let token_client = TokenClient::new(&env, &token);
+    let recipient_before = token_client.balance(&recipient);
+
+    // Let deadline pass with 0 contributions
+    env.ledger().with_mut(|li| {
+        li.timestamp = li.timestamp + (8 * 86400);
+    });
+
+    let caller = members.get(1).unwrap();
+    client.close_cycle(&caller, &circle_id);
+
+    let state = client.get_status(&circle_id);
+    // current_cycle must NOT advance
+    assert_eq!(state.current_cycle, 1);
+
+    // Recipient must NOT be marked as paid
+    let ms_recipient = state.member_states.get(recipient.clone()).unwrap();
+    assert_eq!(ms_recipient.has_received_payout, false);
+
+    // No funds transferred to recipient
+    let recipient_after = token_client.balance(&recipient);
+    assert_eq!(recipient_after, recipient_before);
+
+    // Missed cycles and debt are still tracked for all members
+    for m in members.iter() {
+        let ms = state.member_states.get(m).unwrap();
+        assert_eq!(ms.missed_cycles, 1);
+        assert_eq!(ms.debt, contribution_amount);
+    }
+
+    // Now members contribute in the retry period
+    client.contribute(&members.get(0).unwrap(), &circle_id);
+    client.contribute(&members.get(1).unwrap(), &circle_id);
+
+    // Advance past the retried deadline
+    env.ledger().with_mut(|li| {
+        li.timestamp = li.timestamp + (8 * 86400);
+    });
+
+    client.close_cycle(&caller, &circle_id);
+
+    let state2 = client.get_status(&circle_id);
+    // Now current_cycle advances to 2
+    assert_eq!(state2.current_cycle, 2);
+
+    // Recipient is now marked as paid
+    let ms_recipient2 = state2.member_states.get(recipient.clone()).unwrap();
+    assert_eq!(ms_recipient2.has_received_payout, true);
+
+    // Recipient contributed 1 share (50) and received payout for 2 contributions (100) -> net gain = 50
+    let recipient_final = token_client.balance(&recipient);
+    assert_eq!(recipient_final - recipient_before, contribution_amount);
+}
+
 

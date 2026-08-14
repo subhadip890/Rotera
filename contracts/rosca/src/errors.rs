@@ -6,28 +6,34 @@ use soroban_sdk::contracterror;
 #[derive(Clone, Debug, Copy, PartialEq)]
 #[repr(u32)]
 pub enum RoteraError {
-    // Input validation
+    // Input validation (1..9)
     InvalidContributionAmount = 1,
     InvalidMemberCount = 2,
     InvalidCycleLength = 3,
+    InvalidRepaymentAmount = 4,
+    OverpaymentNotAllowed = 5,
+    NoOutstandingDebt = 6,
 
-    // Circle state
+    // Circle state (10..19)
     CircleNotFound = 10,
     CircleNotFilling = 11,
     CircleNotActive = 12,
     CircleAlreadyCompleted = 13,
+    CircleAlreadyFull = 14,
+    CircleNotCompleted = 15,
 
-    // Member errors
+    // Member errors (20..29)
     NotAMember = 20,
     AlreadyJoined = 21,
     AlreadyContributed = 22,
     NotAMemberOfCircle = 23,
 
-    // Timing errors
+    // Timing errors (30..39)
     DeadlineNotPassed = 30,
     DeadlinePassed = 31,
 
-    // Deposit errors
+    // Deposit errors (40..49)
     OutstandingDebt = 40,
     DepositAlreadyWithdrawn = 41,
 }
+
