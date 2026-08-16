@@ -359,6 +359,7 @@ impl RoteraContract {
                 amount_paid_out: 0,
                 closed: false,
                 closed_at: 0,
+                debt_charged: false,
             }
         };
 
@@ -412,7 +413,14 @@ impl RoteraContract {
         let recipient = circle.payout_order.get(cycle_idx)
             .unwrap_or_else(|| panic!("payout order out of bounds"));
 
-        // Calculate paid count and record missed payments as debt
+        // Check if debt was already charged on a previous close_cycle attempt for this cycle_idx
+        let already_debt_charged = if let Some(record) = circle.cycles.get(cycle_idx) {
+            record.debt_charged
+        } else {
+            false
+        };
+
+        // Calculate paid count and record missed payments as debt (only on first attempt for this cycle)
         let mut paid_count: i128 = 0;
         let mut missing_members: Vec<Address> = Vec::new(&env);
 
@@ -423,20 +431,24 @@ impl RoteraContract {
                     paid_count += 1;
                 } else {
                     missing_members.push_back(addr.clone());
+                    if !already_debt_charged {
+                        let mut ms = circle.member_states.get(addr.clone()).unwrap();
+                        ms.missed_cycles += 1;
+                        ms.debt += circle.contribution_amount;
+                        circle.member_states.set(addr.clone(), ms);
+                    }
+                }
+            }
+        } else {
+            // No one contributed (no cycle record yet) — all members missed
+            for addr in circle.payout_order.iter() {
+                missing_members.push_back(addr.clone());
+                if !already_debt_charged {
                     let mut ms = circle.member_states.get(addr.clone()).unwrap();
                     ms.missed_cycles += 1;
                     ms.debt += circle.contribution_amount;
                     circle.member_states.set(addr.clone(), ms);
                 }
-            }
-        } else {
-            // No one contributed — all members missed
-            for addr in circle.payout_order.iter() {
-                missing_members.push_back(addr.clone());
-                let mut ms = circle.member_states.get(addr.clone()).unwrap();
-                ms.missed_cycles += 1;
-                ms.debt += circle.contribution_amount;
-                circle.member_states.set(addr.clone(), ms);
             }
         }
 
@@ -462,6 +474,7 @@ impl RoteraContract {
         let mut updated = false;
         for (i, mut record) in circle.cycles.iter().enumerate() {
             if i == cycle_idx as usize {
+                record.debt_charged = true;
                 if amount_paid_out > 0 {
                     record.closed = true;
                     record.closed_at = env.ledger().timestamp();
@@ -487,6 +500,7 @@ impl RoteraContract {
                 amount_paid_out: 0,
                 closed: amount_paid_out > 0,
                 closed_at: if amount_paid_out > 0 { env.ledger().timestamp() } else { 0 },
+                debt_charged: true,
             });
         }
         circle.cycles = new_cycles;

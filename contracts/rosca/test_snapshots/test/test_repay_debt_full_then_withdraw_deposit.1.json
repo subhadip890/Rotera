@@ -3181,6 +3181,14 @@
                               },
                               {
                                 "key": {
+                                  "symbol": "debt_charged"
+                                },
+                                "val": {
+                                  "bool": true
+                                }
+                              },
+                              {
+                                "key": {
                                   "symbol": "recipient"
                                 },
                                 "val": {
@@ -3273,6 +3281,14 @@
                                 },
                                 "val": {
                                   "u32": 2
+                                }
+                              },
+                              {
+                                "key": {
+                                  "symbol": "debt_charged"
+                                },
+                                "val": {
+                                  "bool": true
                                 }
                               },
                               {
@@ -3373,6 +3389,14 @@
                               },
                               {
                                 "key": {
+                                  "symbol": "debt_charged"
+                                },
+                                "val": {
+                                  "bool": true
+                                }
+                              },
+                              {
+                                "key": {
                                   "symbol": "recipient"
                                 },
                                 "val": {
@@ -3469,6 +3493,14 @@
                               },
                               {
                                 "key": {
+                                  "symbol": "debt_charged"
+                                },
+                                "val": {
+                                  "bool": true
+                                }
+                              },
+                              {
+                                "key": {
                                   "symbol": "recipient"
                                 },
                                 "val": {
@@ -3561,6 +3593,14 @@
                                 },
                                 "val": {
                                   "u32": 5
+                                }
+                              },
+                              {
+                                "key": {
+                                  "symbol": "debt_charged"
+                                },
+                                "val": {
+                                  "bool": true
                                 }
                               },
                               {

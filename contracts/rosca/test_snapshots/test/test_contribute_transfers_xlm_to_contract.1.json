@@ -924,6 +924,14 @@
                               },
                               {
                                 "key": {
+                                  "symbol": "debt_charged"
+                                },
+                                "val": {
+                                  "bool": false
+                                }
+                              },
+                              {
+                                "key": {
                                   "symbol": "recipient"
                                 },
                                 "val": {

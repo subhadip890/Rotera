@@ -50,7 +50,13 @@ echo ""
 # ── Write contract ID to .env ──────────────────────────────────────────────
 ENV_FILE="$ROOT_DIR/.env"
 if [ -f "$ENV_FILE" ]; then
-    # Update existing VITE_CONTRACT_ID line
+    # Update existing VITE_SOROBAN_CONTRACT_ID line
+    if grep -q "^VITE_SOROBAN_CONTRACT_ID=" "$ENV_FILE"; then
+        sed -i "s|^VITE_SOROBAN_CONTRACT_ID=.*|VITE_SOROBAN_CONTRACT_ID=$CONTRACT_ID|" "$ENV_FILE"
+    else
+        echo "VITE_SOROBAN_CONTRACT_ID=$CONTRACT_ID" >> "$ENV_FILE"
+    fi
+    # Also update legacy VITE_CONTRACT_ID for backward compatibility
     if grep -q "^VITE_CONTRACT_ID=" "$ENV_FILE"; then
         sed -i "s|^VITE_CONTRACT_ID=.*|VITE_CONTRACT_ID=$CONTRACT_ID|" "$ENV_FILE"
     else
@@ -58,8 +64,10 @@ if [ -f "$ENV_FILE" ]; then
     fi
 else
     cp "$ROOT_DIR/.env.example" "$ENV_FILE"
+    sed -i "s|^VITE_SOROBAN_CONTRACT_ID=.*|VITE_SOROBAN_CONTRACT_ID=$CONTRACT_ID|" "$ENV_FILE"
     sed -i "s|^VITE_CONTRACT_ID=.*|VITE_CONTRACT_ID=$CONTRACT_ID|" "$ENV_FILE"
 fi
 
 echo "📝 Contract ID written to .env"
-echo "   VITE_CONTRACT_ID=$CONTRACT_ID"
+echo "   VITE_SOROBAN_CONTRACT_ID=$CONTRACT_ID"
+

@@ -1359,4 +1359,143 @@ fn test_close_cycle_zero_contributions_does_not_consume_turn() {
     assert_eq!(recipient_final - recipient_before, contribution_amount);
 }
 
+#[test]
+fn test_close_cycle_repeated_zero_contribution_retries_does_not_multiply_debt() {
+    let (env, _, members) = setup_env();
+    let contract_addr = env.register(RoteraContract, ());
+    let client = RoteraContractClient::new(&env, &contract_addr);
+
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    let contribution_amount = 50_0000000i128;
+
+    for m in members.iter() {
+        fund_address(&env, &token, &admin, &m, 1000_0000000);
+    }
+
+    let circle_id = client.create_circle(
+        &members.get(0).unwrap(),
+        &circle_name(&env),
+        &contribution_amount,
+        &7u32,
+        &(members.len()),
+        &PayoutOrderType::Manual,
+        &token,
+    );
+
+    for m in members.iter() {
+        client.join_circle(&m, &circle_id);
+    }
+
+    let caller = members.get(1).unwrap();
+
+    // First attempt: Let deadline pass with 0 contributions
+    env.ledger().with_mut(|li| {
+        li.timestamp = li.timestamp + (8 * 86400);
+    });
+
+    client.close_cycle(&caller, &circle_id);
+
+    let state1 = client.get_status(&circle_id);
+    assert_eq!(state1.current_cycle, 1);
+    for m in members.iter() {
+        let ms = state1.member_states.get(m).unwrap();
+        assert_eq!(ms.missed_cycles, 1);
+        assert_eq!(ms.debt, contribution_amount);
+    }
+
+    // Second attempt: Let extended deadline pass again with still 0 contributions
+    env.ledger().with_mut(|li| {
+        li.timestamp = li.timestamp + (8 * 86400);
+    });
+
+    client.close_cycle(&caller, &circle_id);
+
+    let state2 = client.get_status(&circle_id);
+    assert_eq!(state2.current_cycle, 1);
+
+    // Debt and missed_cycles must NOT be compounded/doubled
+    for m in members.iter() {
+        let ms = state2.member_states.get(m).unwrap();
+        assert_eq!(ms.missed_cycles, 1, "missed_cycles should remain 1 on retry");
+        assert_eq!(ms.debt, contribution_amount, "debt should remain 1x on retry");
+    }
+}
+
+#[test]
+fn test_close_cycle_eventual_payment_after_zero_retry_does_not_double_charge_debt() {
+    let (env, _, members) = setup_env();
+    let contract_addr = env.register(RoteraContract, ());
+    let client = RoteraContractClient::new(&env, &contract_addr);
+
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    let contribution_amount = 50_0000000i128;
+
+    for m in members.iter() {
+        fund_address(&env, &token, &admin, &m, 1000_0000000);
+    }
+
+    let circle_id = client.create_circle(
+        &members.get(0).unwrap(),
+        &circle_name(&env),
+        &contribution_amount,
+        &7u32,
+        &(members.len()),
+        &PayoutOrderType::Manual,
+        &token,
+    );
+
+    for m in members.iter() {
+        client.join_circle(&m, &circle_id);
+    }
+
+    let recipient = members.get(0).unwrap();
+    let caller = members.get(1).unwrap();
+    let token_client = TokenClient::new(&env, &token);
+    let recipient_before = token_client.balance(&recipient);
+
+    // First attempt: Let deadline pass with 0 contributions (everyone gets 1x debt)
+    env.ledger().with_mut(|li| {
+        li.timestamp = li.timestamp + (8 * 86400);
+    });
+
+    client.close_cycle(&caller, &circle_id);
+
+    let state1 = client.get_status(&circle_id);
+    for m in members.iter() {
+        let ms = state1.member_states.get(m).unwrap();
+        assert_eq!(ms.missed_cycles, 1);
+        assert_eq!(ms.debt, contribution_amount);
+    }
+
+    // Now EVERY member contributes before the new retried deadline
+    for m in members.iter() {
+        client.contribute(&m, &circle_id);
+    }
+
+    // Advance past retried deadline
+    env.ledger().with_mut(|li| {
+        li.timestamp = li.timestamp + (8 * 86400);
+    });
+
+    client.close_cycle(&caller, &circle_id);
+
+    let state2 = client.get_status(&circle_id);
+    assert_eq!(state2.current_cycle, 2);
+
+    // Debt must still be exactly 1x from attempt 1 (not double charged)
+    for m in members.iter() {
+        let ms = state2.member_states.get(m).unwrap();
+        assert_eq!(ms.missed_cycles, 1, "missed_cycles should remain 1");
+        assert_eq!(ms.debt, contribution_amount, "debt should remain 1x");
+    }
+
+    // Recipient received full pot (5 members * 50 = 250) minus their 1 contribution (50) -> net gain = 200 (4 * 50)
+    let recipient_final = token_client.balance(&recipient);
+    let expected_net_gain = (members.len() as i128 - 1) * contribution_amount;
+    assert_eq!(recipient_final - recipient_before, expected_net_gain);
+}
+
+
 

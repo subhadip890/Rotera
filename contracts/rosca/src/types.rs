@@ -57,6 +57,8 @@ pub struct CycleRecord {
     pub closed: bool,
     /// Timestamp when closed (0 if still open)
     pub closed_at: u64,
+    /// Whether debt has already been assessed and charged for this cycle attempt
+    pub debt_charged: bool,
 }
 
 /// Full circle state — stored persistently per circle_id
