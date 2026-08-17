@@ -110,14 +110,20 @@ The core ROSCA logic is implemented in Rust (`contracts/rosca/src/lib.rs`) on St
 
 ---
 
-## Current Testnet Contract
+## Stellar Testnet Contracts
 
+### Current Verified Contract (Active & Green Belt Certified)
 - **Network**: Stellar Testnet
-- **Contract ID**: `CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`
+- **Contract ID**: `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`
 - **RPC Endpoint**: `https://soroban-testnet.stellar.org`
 - **Network Passphrase**: `Test SDF Network ; September 2015`
-- **Horizon API**: `https://horizon-testnet.stellar.org`
-- **Stellar Expert Explorer**: [View Contract on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
+- **Native XLM Token Contract**: `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
+- **Stellar Expert Explorer**: [View Verified Contract on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ)
+- **Features Verified**: Full ROSCA lifecycle, automated payouts, debt creation, partial & full `repay_debt`, zero-debt resolution, and collateral security deposits.
+
+### Legacy Contract (Historical Development)
+- **Contract ID**: `CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`
+- **Note**: Circles created on the legacy contract remain archived on-chain for historical evidence and are not migrated. All active application workflows query the current verified contract.
 
 ---
 
@@ -241,7 +247,7 @@ Test suite coverage includes:
 
 ## Deployment
 
-- **Smart Contract**: Deployed and active on Stellar Testnet (`CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`).
+- **Smart Contract**: Deployed and active on Stellar Testnet (`CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`, legacy: `CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`).
 - **Frontend**: Single-page application built with TanStack Start/Vite, deployable to Cloudflare Pages, Vercel, or Netlify.
 
 ---

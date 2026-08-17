@@ -253,7 +253,7 @@ export function useRepayDebtMutation() {
 // TIMING ARCHITECTURE
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// The currently deployed Testnet contract (CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
+// The Green Belt Testnet contract (CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ, legacy: CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
 // uses this dual-mode calculate_deadline(cycle_length_days: u32):
 //
 //   value <= 3600  →  deadline = now + value           (interprets as SECONDS)

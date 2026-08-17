@@ -24,13 +24,19 @@ This document compiles the submission evidence, technical verification, on-chain
 
 ---
 
-## 3. Deployed Soroban Contract
+## 3. Deployed Soroban Contracts
 
+### Current Verified Green Belt Testnet Contract (Active)
 - **Network**: Stellar Testnet (`https://soroban-testnet.stellar.org`)
 - **Network Passphrase**: `Test SDF Network ; September 2015`
-- **Contract ID**: [`CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`](https://stellar.expert/explorer/testnet/contract/CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
+- **Contract ID**: [`CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`](https://stellar.expert/explorer/testnet/contract/CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ)
 - **Native SAC ID**: [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)
 - **Contract Source**: [`contracts/rosca/src/lib.rs`](../contracts/rosca/src/lib.rs)
+- **Status**: Production Verified — all lifecycle functions including `repay_debt`, security collateral, turn-based collection, and keeper cycle closures are deployed and verified on-chain.
+
+### Legacy Development Contract (Archived)
+- **Contract ID**: [`CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`](https://stellar.expert/explorer/testnet/contract/CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
+- **Note**: Historical development circles remain stored on the legacy contract and are not migrated. All current demo workflows query the verified contract above.
 
 ---
 
@@ -63,7 +69,7 @@ $ npm run verify
 - Cutoff deadline enforcement and late-payment rejection
 - Keeper-triggered `close_cycle` execution and automated XLM payout
 - Default tracking, debt accumulation, and missed-cycle recording
-- Repay debt functionality and deposit unlocking
+- Repay debt functionality (partial and full settlement) and deposit unlocking
 
 ---
 
@@ -71,7 +77,31 @@ $ npm run verify
 
 All transactions below were executed and confirmed on the live Stellar Testnet ledger.
 
-### A. Circle #31 End-to-End Run
+### A. Current Contract Verified Circle #3 — Complete Lifecycle & `repay_debt` Run
+- **Contract ID**: `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`
+- **Parameters**: 3 Members, 1.0 XLM Contribution, 0.1 XLM Deposit, 60s Accelerated Cycle Cadence
+- **Organizer**: `GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR`
+- **Debtor / Repayer**: `GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG`
+
+| Action | Ledger Function | Participating Wallet | Transaction Hash / Explorer Link |
+| :--- | :--- | :--- | :--- |
+| **Create Circle** | `create_circle` | `GCFIRY...OJR` | [`4a3ddc5d9004f7bb3ded07156d810fc2edaf68d726d3c44318e959f508feb106`](https://stellar.expert/explorer/testnet/tx/4a3ddc5d9004f7bb3ded07156d810fc2edaf68d726d3c44318e959f508feb106) |
+| **Join Seat 1** | `join_circle` | `GCFIRY...OJR` | [`b5b64eda1816834ee0a93630503062e3f58a1a4cd94e9b898e724269ed88ccb2`](https://stellar.expert/explorer/testnet/tx/b5b64eda1816834ee0a93630503062e3f58a1a4cd94e9b898e724269ed88ccb2) |
+| **Join Seat 2** | `join_circle` | `GCATS5...55U` | [`d76c622080f1274cab63ba131b2131437d2ac8295e678166a5bc8911a3b7dd57`](https://stellar.expert/explorer/testnet/tx/d76c622080f1274cab63ba131b2131437d2ac8295e678166a5bc8911a3b7dd57) |
+| **Join Seat 3 & Activate** | `join_circle` | `GDWUSK...IAG` | [`f603a3ee1cbad201be9151cc01fc9a0a8bb90ae78defe637f92a0ecf743a05ad`](https://stellar.expert/explorer/testnet/tx/f603a3ee1cbad201be9151cc01fc9a0a8bb90ae78defe637f92a0ecf743a05ad) |
+| **Cycle 1 Contrib (Member 1)** | `contribute` | `GCFIRY...OJR` | [`3d37f96745ee615b7b8693a4f74f938cfa01cfb895499a5183496a9f6a51c1a9`](https://stellar.expert/explorer/testnet/tx/3d37f96745ee615b7b8693a4f74f938cfa01cfb895499a5183496a9f6a51c1a9) |
+| **Cycle 1 Contrib (Member 2)** | `contribute` | `GCATS5...55U` | [`5202f6fe98e04af82f898feb45b27489494730e3b1d32fed6d9516e0baa9fc89`](https://stellar.expert/explorer/testnet/tx/5202f6fe98e04af82f898feb45b27489494730e3b1d32fed6d9516e0baa9fc89) |
+| **Cycle 1 Contrib (Member 3)** | `contribute` | `GDWUSK...IAG` | [`757e55527be4dfd06d2a2d88b66ba8da72f868567018710c3fd07578492feb9f`](https://stellar.expert/explorer/testnet/tx/757e55527be4dfd06d2a2d88b66ba8da72f868567018710c3fd07578492feb9f) |
+| **Close Cycle 1 & Payout** | `close_cycle` | `GCFIRY...OJR` (Keeper) | [`ebbd7b139202ba8e04533f23d7848d67a697101bcb1343a43fd70972868bf572`](https://stellar.expert/explorer/testnet/tx/ebbd7b139202ba8e04533f23d7848d67a697101bcb1343a43fd70972868bf572) |
+| **Cycle 2 Contrib (Member 1)** | `contribute` | `GCFIRY...OJR` | [`98bbe5b87b2fabff75ca1f75c68dbb5c65cace0d3c7d6ef821e497d6df1895e4`](https://stellar.expert/explorer/testnet/tx/98bbe5b87b2fabff75ca1f75c68dbb5c65cace0d3c7d6ef821e497d6df1895e4) |
+| **Cycle 2 Contrib (Member 2)** | `contribute` | `GCATS5...55U` | [`7704d1d401c73ffada3b4c75c49018329bdb910c61c1068567613d24beafa5ef`](https://stellar.expert/explorer/testnet/tx/7704d1d401c73ffada3b4c75c49018329bdb910c61c1068567613d24beafa5ef) |
+| **Close Cycle 2 (Debt Trigger)** | `close_cycle` | `GCATS5...55U` (Keeper) | [`62a4b9984f7a472d7728d8426d385a817d92fe7be92a3ccff339f610a53e9a9c`](https://stellar.expert/explorer/testnet/tx/62a4b9984f7a472d7728d8426d385a817d92fe7be92a3ccff339f610a53e9a9c) |
+| **Partial Debt Repay (0.5 XLM)** | `repay_debt` | `GDWUSK...IAG` (Debtor) | [`0e57f84224684edb7fce79c7d525b16dce44a61e8924dc35d14afdd315bd0b24`](https://stellar.expert/explorer/testnet/tx/0e57f84224684edb7fce79c7d525b16dce44a61e8924dc35d14afdd315bd0b24) |
+| **Full Debt Repay (0.5 XLM)** | `repay_debt` | `GDWUSK...IAG` (Debtor) | [`8965e8a8a69fbca0121a6111c7691c108c342969bef6e09052eb378376485703`](https://stellar.expert/explorer/testnet/tx/8965e8a8a69fbca0121a6111c7691c108c342969bef6e09052eb378376485703) |
+
+### B. Legacy Development Evidence (Archived Contract `CAY3GC...KLO4`)
+
+#### Legacy Circle #31 Run
 - **Parameters**: 3 Members, 2.0 XLM Contribution, 0.2 XLM Deposit, 60s Accelerated Cycle Cadence
 - **Organizer**: `GCOAF3TWUVJCQQCRS2XFOFWIGJ3XPLPYDPPJQ5BJYN6DGVEEKUMSXSMS`
 
