@@ -74,14 +74,20 @@ export function useUserCircles(userAddress: string | null | undefined) {
   });
 }
 
+const CURRENT_CONTRACT_ID = import.meta.env.VITE_SOROBAN_CONTRACT_ID || "";
+
 /**
- * Fetch historical events for a circle from Supabase.
+ * Fetch historical events for a circle from Supabase scoped to the current contract.
  */
-export function useSupabaseCircleEvents(circleId: string | number | null | undefined) {
+export function useSupabaseCircleEvents(
+  circleId: string | number | null | undefined,
+  contractId: string = CURRENT_CONTRACT_ID,
+) {
   return useQuery({
-    queryKey: ["supabaseCircleEvents", String(circleId)],
-    queryFn: () => fetchCircleEventsFromSupabase(circleId),
+    queryKey: ["supabaseCircleEvents", contractId, String(circleId)],
+    queryFn: () => fetchCircleEventsFromSupabase(circleId, contractId),
     staleTime: 5_000,
+    enabled: Boolean(circleId),
   });
 }
 
@@ -115,7 +121,9 @@ export function useCreateCircleMutation() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["circle", data.circleId] });
       queryClient.invalidateQueries({ queryKey: ["userCircles"] });
-      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", data.circleId] });
+      queryClient.invalidateQueries({
+        queryKey: ["supabaseCircleEvents", CURRENT_CONTRACT_ID, data.circleId],
+      });
     },
     onError: (err) => {
       captureException(err, { context: "useCreateCircleMutation" });
@@ -136,7 +144,9 @@ export function useJoinCircleMutation() {
       const cid = String(variables.circleId);
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
       queryClient.invalidateQueries({ queryKey: ["userCircles"] });
-      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
+      queryClient.invalidateQueries({
+        queryKey: ["supabaseCircleEvents", CURRENT_CONTRACT_ID, cid],
+      });
     },
     onError: (err) => {
       captureException(err, { context: "useJoinCircleMutation" });
@@ -157,7 +167,9 @@ export function useContributeMutation() {
     onSuccess: (_, variables) => {
       const cid = String(variables.circleId);
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
-      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
+      queryClient.invalidateQueries({
+        queryKey: ["supabaseCircleEvents", CURRENT_CONTRACT_ID, cid],
+      });
     },
     onError: (err) => {
       captureException(err, { context: "useContributeMutation" });
@@ -196,7 +208,9 @@ export function useCloseCycleMutation() {
       // Refresh chain state & events
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
       queryClient.invalidateQueries({ queryKey: ["userCircles"] });
-      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
+      queryClient.invalidateQueries({
+        queryKey: ["supabaseCircleEvents", CURRENT_CONTRACT_ID, cid],
+      });
     },
     onError: (err) => {
       captureException(err, { context: "useCloseCycleMutation" });
@@ -215,7 +229,9 @@ export function useWithdrawDepositMutation() {
     onSuccess: (_, variables) => {
       const cid = String(variables.circleId);
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
-      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
+      queryClient.invalidateQueries({
+        queryKey: ["supabaseCircleEvents", CURRENT_CONTRACT_ID, cid],
+      });
     },
     onError: (err) => {
       captureException(err, { context: "useWithdrawDepositMutation" });
@@ -241,7 +257,9 @@ export function useRepayDebtMutation() {
     onSuccess: (_, variables) => {
       const cid = String(variables.circleId);
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
-      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
+      queryClient.invalidateQueries({
+        queryKey: ["supabaseCircleEvents", CURRENT_CONTRACT_ID, cid],
+      });
     },
     onError: (err) => {
       captureException(err, { context: "useRepayDebtMutation" });
