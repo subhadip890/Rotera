@@ -11,6 +11,7 @@ export default tseslint.config(
       "dist",
       "dist-ssr",
       ".output",
+      ".vercel",
       ".vinxi",
       ".tanstack",
       ".wrangler",
