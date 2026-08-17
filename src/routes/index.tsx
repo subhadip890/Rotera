@@ -3,11 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { Roundtable, type Seat } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
-import {
-  useCircleState,
-  useUserCircles,
-  stroopsToXlm,
-} from "@/hooks/useSorobanQueries";
+import { useCircleState, useUserCircles, stroopsToXlm } from "@/hooks/useSorobanQueries";
 import { useIllustrativeRotation } from "@/hooks/useIllustrativeRotation";
 
 export const Route = createFileRoute("/")({
@@ -55,9 +51,7 @@ function Landing() {
   //      null — show illustrative demo animation
   const targetId: string | null = address
     ? activeCircleId ||
-      (userCircles && userCircles.length > 0
-        ? String(userCircles[userCircles.length - 1])
-        : null)
+      (userCircles && userCircles.length > 0 ? String(userCircles[userCircles.length - 1]) : null)
     : null;
 
   const { data: circle, isLoading: isCircleLoading, isError } = useCircleState(targetId);
@@ -87,21 +81,24 @@ function Landing() {
         const addr = circle.payout_order[i] || "";
         const ms = addr ? circle.member_states.get(addr) : undefined;
         const cycleIdx = circle.current_cycle - 1;
-        const currentCycleRecord =
-          circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
-        const paid = addr && currentCycleRecord ? (currentCycleRecord.contributions.get(addr) ?? false) : false;
-        const isLate = !paid && circle.cycle_deadline > 0 && Date.now() / 1000 > circle.cycle_deadline;
+        const currentCycleRecord = circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
+        const paid =
+          addr && currentCycleRecord
+            ? (currentCycleRecord.contributions.get(addr) ?? false)
+            : false;
+        const isLate =
+          !paid && circle.cycle_deadline > 0 && Date.now() / 1000 > circle.cycle_deadline;
         const isDefaulted = ms ? ms.missed_cycles > 0 : false;
         const isMe = Boolean(address && addr === address);
 
         return {
           id: addr || `seat-${i}`,
-          name: isMe
-            ? "You"
-            : addr
-              ? `${addr.slice(0, 5)}…${addr.slice(-4)}`
-              : `Seat ${i + 1}`,
-          status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
+          name: isMe ? "You" : addr ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : `Seat ${i + 1}`,
+          status: paid
+            ? ("paid" as const)
+            : isLate || isDefaulted
+              ? ("late" as const)
+              : ("waiting" as const),
         };
       } else {
         return {
@@ -161,10 +158,9 @@ function Landing() {
               the pot home.
             </h1>
             <p className="mt-6 max-w-lg text-lg leading-relaxed text-muted-foreground">
-              It's the arrangement your family already runs — chit fund, susu, tanda,
-              ajo, stokvel. Rotera keeps the group exactly as it is and takes over the
-              part people argue about: who's next, who has paid, and what happens when
-              someone is late.
+              It's the arrangement your family already runs — chit fund, susu, tanda, ajo, stokvel.
+              Rotera keeps the group exactly as it is and takes over the part people argue about:
+              who's next, who has paid, and what happens when someone is late.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <Link
@@ -181,8 +177,7 @@ function Landing() {
               </Link>
             </div>
             <p className="mt-6 text-sm text-muted-foreground">
-              Used by seven test circles across Lagos, Chennai and Cape Town during the
-              testnet run.
+              Used by seven test circles across Lagos, Chennai and Cape Town during the testnet run.
             </p>
           </motion.div>
 
@@ -239,9 +234,9 @@ function Landing() {
           <div>
             <h2 className="text-3xl font-semibold">Never used a wallet? That's fine.</h2>
             <p className="mt-4 leading-relaxed text-muted-foreground">
-              A wallet is an account you hold yourself — no branch visit, no minimum
-              balance. Rotera never takes custody of your money and never asks you for a
-              password. You approve each payment, and the contract does the rest.
+              A wallet is an account you hold yourself — no branch visit, no minimum balance. Rotera
+              never takes custody of your money and never asks you for a password. You approve each
+              payment, and the contract does the rest.
             </p>
           </div>
           <dl className="grid gap-6 sm:grid-cols-2">

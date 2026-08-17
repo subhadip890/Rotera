@@ -7,10 +7,14 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Dependencies
+# Dependencies and Build Output
 node_modules
 dist
 dist-ssr
+.output
+.tanstack
+.wrangler
+.vinxi
 *.local
 
 # Editor directories and files
@@ -33,5 +37,10 @@ dist-ssr
 contracts/rosca/target/
 *.wasm
 
+# Scratch and memory files
+scratch/
+remem.md
+
 # OS
 Thumbs.db
+

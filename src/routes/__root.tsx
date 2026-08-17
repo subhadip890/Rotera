@@ -90,8 +90,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary_large_image" },
       { property: "og:title", content: "Rotera — savings circles that run themselves" },
       { name: "twitter:title", content: "Rotera — savings circles that run themselves" },
-      { property: "og:description", content: "A fixed group, the same contribution each week, and one payout per cycle. Rotera keeps the circle you already trust and replaces the organizer with a contract on Stellar." },
-      { name: "twitter:description", content: "A fixed group, the same contribution each week, and one payout per cycle. Rotera keeps the circle you already trust and replaces the organizer with a contract on Stellar." },
+      {
+        property: "og:description",
+        content:
+          "A fixed group, the same contribution each week, and one payout per cycle. Rotera keeps the circle you already trust and replaces the organizer with a contract on Stellar.",
+      },
+      {
+        name: "twitter:description",
+        content:
+          "A fixed group, the same contribution each week, and one payout per cycle. Rotera keeps the circle you already trust and replaces the organizer with a contract on Stellar.",
+      },
     ],
     links: [
       {

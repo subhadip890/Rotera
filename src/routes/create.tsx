@@ -85,7 +85,7 @@ function CreateCircle() {
 
       setRealCircleId(res.circleId);
       setTxHash(res.txHash);
-      setActiveCircleId(res.circleId);  // persist for dashboard use
+      setActiveCircleId(res.circleId); // persist for dashboard use
 
       // Use the real on-chain circle ID in the invite URL
       const origin = typeof window !== "undefined" ? window.location.origin : "https://rotera.app";
@@ -100,9 +100,8 @@ function CreateCircle() {
       <div>
         <h1 className="text-4xl font-semibold">Start a circle</h1>
         <p className="mt-3 max-w-xl text-muted-foreground">
-          Write down the agreement your group already made. Once the first person joins,
-          the amount, the schedule and the order can't be changed by anyone — including
-          you.
+          Write down the agreement your group already made. Once the first person joins, the amount,
+          the schedule and the order can't be changed by anyone — including you.
         </p>
 
         {!connected && (
@@ -174,8 +173,8 @@ function CreateCircle() {
               </select>
               {IS_TEST_MODE && (
                 <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
-                  ⚡ Accelerated Testnet demo — cycles run in seconds, not days.
-                  Production cadences require a mainnet contract redeployment.
+                  ⚡ Accelerated Testnet demo — cycles run in seconds, not days. Production cadences
+                  require a mainnet contract redeployment.
                 </p>
               )}
             </Field>
@@ -212,9 +211,7 @@ function CreateCircle() {
                   <input
                     type="checkbox"
                     checked={orderType === "RandomPending"}
-                    onChange={(e) =>
-                      setOrderType(e.target.checked ? "RandomPending" : "Manual")
-                    }
+                    onChange={(e) => setOrderType(e.target.checked ? "RandomPending" : "Manual")}
                     className="rounded"
                   />
                   Randomize on-chain at activation
@@ -229,8 +226,8 @@ function CreateCircle() {
 
             {seed !== null && orderType === "Manual" && (
               <p className="num mt-3 rounded-md border border-border bg-chalk p-3 text-xs text-muted-foreground">
-                Preview drawn with Fisher-Yates from seed {seed}. The binding order comes
-                from the chain when the circle activates.
+                Preview drawn with Fisher-Yates from seed {seed}. The binding order comes from the
+                chain when the circle activates.
               </p>
             )}
           </div>
@@ -259,8 +256,8 @@ function CreateCircle() {
           <div className="mt-8 rounded-xl border border-brass/50 bg-chalk p-5">
             <h2 className="text-xl font-semibold">{name} is live on Stellar Testnet</h2>
             <p className="mt-1 text-muted-foreground">
-              Send this link to your group. Each person claims their seat by connecting
-              a wallet and joining.
+              Send this link to your group. Each person claims their seat by connecting a wallet and
+              joining.
             </p>
             <p className="num mt-3 break-all rounded-md bg-parchment px-3 py-2.5 text-sm">
               {invite}
@@ -307,7 +304,10 @@ function CreateCircle() {
           <Row k="How often" v={cadence.toLowerCase()} />
           <Row k="Pot per cycle" v={`${potPerCycle.toLocaleString("en-US")} XLM`} />
           <Row k="Full rotation" v={`${memberCount} cycles`} />
-          <Row k="Payout order" v={orderType === "RandomPending" ? "Randomised on-chain" : "Join order"} />
+          <Row
+            k="Payout order"
+            v={orderType === "RandomPending" ? "Randomised on-chain" : "Join order"}
+          />
         </dl>
       </aside>
     </div>

@@ -1,14 +1,7 @@
 import { useState, useEffect } from "react";
 import type { Seat } from "@/components/roundtable/Roundtable";
 
-const ILLUSTRATIVE_NAMES = [
-  "Seat A",
-  "Seat B",
-  "Seat C",
-  "Seat D",
-  "Seat E",
-  "Seat F",
-];
+const ILLUSTRATIVE_NAMES = ["Seat A", "Seat B", "Seat C", "Seat D", "Seat E", "Seat F"];
 
 const CAPTIONS = [
   "Everybody pays in.",

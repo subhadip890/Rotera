@@ -1,271 +1,257 @@
-# Rotera � Savings Circles That Run Themselves
-
-> **Level 4 � Green Belt Submission** | Stellar/Soroban Rotating Savings Circle (ROSCA) Protocol
-
-Rotera takes the informal rotating savings arrangement used by billions of people worldwide � known as *chit funds* in India, *susu* in West Africa, *tanda* in Latin America, *stokvel* in South Africa, and *ajo* in Nigeria � and replaces the trusted human organizer with an automated, transparent smart contract on Stellar/Soroban.
-
----
-
-## ?? What Rotera Does
-
-1. **Agree Once**: A fixed group of members (e.g. 6 people) commit to a fixed contribution (e.g. 200 XLM) on a regular schedule (weekly/biweekly/monthly).
-2. **Pay Your Share**: Each cycle, members contribute their share before the cutoff deadline. Rotera tracks who has paid and who has missed � no chasing in WhatsApp groups required.
-3. **Take Your Turn**: When the cycle closes, the entire pot transfers to the wallet of whichever seat is up next. A keeper call triggers `close_cycle` after the deadline passes. The ring then turns one notch for the next cycle.
-
----
-
-## ??? Architecture & Technical Design
-
-```
-+---------------------------------------------------------+
-�              Rotera TanStack Start Frontend             �
-�   (TanStack Router + Query + Zustand + Tailwind + Motion)�
-+---------------------------------------------------------+
-               �                          �
-               ?                          ?
-+-----------------------------+ +-------------------------+
-�     Stellar/Soroban Smart   � �   Observability & Data  �
-�          Contract           � � ----------------------- �
-� --------------------------- � � � Sentry (Errors)       �
-� � create_circle             � � � PostHog (Analytics)   �
-� � join_circle               � � � Supabase (Feedback)   �
-� � contribute                � � � Freighter Wallet API  �
-� � close_cycle (Keeper)      � +-------------------------+
-� � repay_debt                �
-� � get_status                �
-� � withdraw_deposit          �
-+-----------------------------+
-```
-
-### 1. Smart Contract (Soroban / Rust)
-
-- **State Management**: Persists circle configurations, member payout ordering, individual deposit records (10% holdback), cycle contribution states, and outstanding debt history.
-- **Permissionless Keeper Pattern**: `close_cycle` is callable by **any** signed account once `cycle_deadline` passes. It calculates collected funds, records missed payments as debt, pays the recipient, and advances the cycle.
-- **Debt Model**: Missed contributions create on-chain debt. Members repay via `repay_debt()`. Only after debt is cleared can their 10% entry deposit be withdrawn.
-
-### 2. Payout Order
-
-**Join-order (Manual)**: Members receive payouts in join sequence.
-
-**Randomised**: When the last seat is filled, the contract performs a deterministic Fisher-Yates shuffle using:
-- Seed bytes 0�7: `ledger().timestamp()` (u64)
-- Seed bytes 8�11: `ledger().sequence()` (u32)
-- Seed bytes 12�15: constant `0xDEADBEEF`
-- PRNG: LCG (multiplier 6364136223846793005)
-
-This is fully on-chain and verifiable from the activation transaction. Ledger timestamp and sequence are predictable by validators � a documented trade-off for trust-based group savings.
-
-### 3. Cycle Timing - Accelerated Testnet vs Production
-
-> **Current Testnet Deployment is Accelerated Demo Mode.**
-> The current Green Belt Testnet deployment does NOT use real weekly/monthly schedules.
-> All cycles run in seconds for fast demonstration and review. This is intentional.
-
-#### Current Deployed Contract - Dual-Mode calculate_deadline
-
-The contract interprets \cycle_length_days: u32\ with this rule:
-
-| Value | Branch | Result |
-|-------|--------|--------|
-| value <= 3600 | **Seconds** | deadline = now + value (seconds) |
-| value > 3600 | Days | deadline = now + value x 86400 (seconds) |
-
-#### Accelerated Test Mode (current Testnet deployment)
-
-When \VITE_ENABLE_TEST_CYCLES=true\, the Create Circle form shows **only** these explicit test cycle options.
-The misleading Weekly/Monthly labels are **intentionally hidden** when test mode is active.
-
-| UI Label | Value sent | Actual deadline |
-|----------|-----------|----------------|
-| 10-second test cycle | 10 | now + 10 seconds |
-| 30-second test cycle | 30 | now + 30 seconds |
-| 60-second test cycle | 60 | now + 60 seconds |
-| 5-minute test cycle | 300 | now + 300 seconds |
-# Rotera  Savings Circles That Run Themselves
+# Rotera
 
-> **Level 4  Green Belt Submission** | Stellar/Soroban Rotating Savings Circle (ROSCA) Protocol
+> **On-chain rotating savings circles powered by Stellar Soroban.**
 
-Rotera takes the informal rotating savings arrangement used by billions of people worldwide  known as *chit funds* in India, *susu* in West Africa, *tanda* in Latin America, *stokvel* in South Africa, and *ajo* in Nigeria  and replaces the trusted human organizer with an automated, transparent smart contract on Stellar/Soroban.
+Rotera replaces the traditional, informal rotating savings and credit associations (ROSCAs) used by billions of people worldwide — known as *chit funds* in India, *susu* in West Africa, *tanda* in Latin America, *stokvel* in South Africa, and *ajo* in Nigeria — with transparent, non-custodial smart contracts on Stellar.
 
 ---
 
-## ?? What Rotera Does
+## Problem
 
-1. **Agree Once**: A fixed group of members (e.g. 6 people) commit to a fixed contribution (e.g. 200 XLM) on a regular schedule (weekly/biweekly/monthly).
-2. **Pay Your Share**: Each cycle, members contribute their share before the cutoff deadline. Rotera tracks who has paid and who has missed  no chasing in WhatsApp groups required.
-3. **Take Your Turn**: When the cycle closes, the entire pot transfers to the wallet of whichever seat is up next. A keeper call triggers `close_cycle` after the deadline passes. The ring then turns one notch for the next cycle.
+Informal savings circles are an essential financial tool for communities across the globe, allowing groups to pool funds and access lump-sum capital without traditional banking gatekeepers. However, traditional ROSCAs rely heavily on social trust and suffer from recurring failure modes:
+
+- **Organizer Risk**: Human organizers collect cash, keep manual ledgers, and can mismanage or abscond with pooled funds.
+- **Default & Ghosting**: Members who receive early payouts often default on subsequent contributions, leaving later members at a loss.
+- **Coordination Friction**: Manually tracking payments, chasing late members across messaging apps, and calculating balances creates constant disputes.
 
 ---
 
-## ??? Architecture & Technical Design
+## Solution
+
+Rotera replaces the trusted human coordinator with an immutable Soroban smart contract on Stellar:
+
+- **Automated Accounting & Payouts**: Contributions are deposited directly to the contract and automatically routed to each recipient in turn.
+- **Early-Exit Protection**: A 10% security deposit is locked on-chain when joining and cannot be withdrawn until all cycles are complete and all debts are settled.
+- **On-Chain Debt Tracking**: Missed contributions are recorded as explicit on-chain debt, reducing payout shortfalls transparently and enabling members to repay their obligations.
+- **Self-Sovereign Identity**: Members authenticate directly via their Freighter wallet; Rotera never takes custody of user keys or private funds.
+
+---
+
+## Features
+
+- **Fixed-Contribution Circles**: Define fixed member sizes (3–12 members) and contribution amounts in XLM.
+- **Deterministic & Verifiable Payout Sequencing**: Choose between join-order or deterministic on-chain randomized payout ordering.
+- **Permissionless Keeper Automation**: Once a cycle deadline passes, `close_cycle` is callable by anyone, advancing turns and releasing payouts automatically.
+- **Stall & Debt Protection**: Zero-contribution cycles safely extend deadlines without burning the recipient's turn or compounding uncharged debt.
+- **Transparent Audit History**: Full historical timeline of circle events, member payment reliability, and on-chain transaction hashes.
+- **Feedback & Observability**: Integrated user feedback widget, PostHog analytics, and Sentry error monitoring.
+
+---
+
+## User Flow
+
+```mermaid
+flowchart LR
+    A[Create Circle] --> B[Invite Members]
+    B --> C[Join & Deposit]
+    C --> D[Contribute XLM]
+    D --> E[Close Cycle]
+    E --> F[Payout Released]
+    F --> G[History & Repay Debt]
+```
+
+1. **Create**: The organizer creates a circle, setting the contribution amount, member count, payout ordering (join order or random), and cycle cadence.
+2. **Invite & Join**: Members open the shareable invite link (`/join/:circleId`), connect their Freighter wallet, and join by locking the 10% entry deposit.
+3. **Contribute**: Once all seats are filled, the circle activates. Members deposit their share before each cycle deadline.
+4. **Close Cycle (Keeper)**: When the deadline passes, `close_cycle` is called. The smart contract tallies payments, calculates shortfalls, transfers the pot to the scheduled recipient, and advances the cycle index.
+5. **Missed Payment & Debt Flow**: If a member misses a cycle, the contract records the shortfall as on-chain debt and marks their status as late. The member can clear their balance anytime via `repay_debt()`.
+6. **Completion & Deposit Return**: After a full rotation finishes and all debts are cleared, members withdraw their original 10% security deposit via `withdraw_deposit()`.
+
+---
+
+## Architecture
 
 ```
 +---------------------------------------------------------+
-              Rotera TanStack Start Frontend             
-   (TanStack Router + Query + Zustand + Tailwind + Motion)
+|              Rotera TanStack Start Frontend             |
+|  (React 19 + TypeScript + TanStack Query + Tailwind)    |
 +---------------------------------------------------------+
-                                         
-               ?                          ?
+               |                          |
+               v                          v
 +-----------------------------+ +-------------------------+
-     Stellar/Soroban Smart       Observability & Data  
-          Contract             ----------------------- 
- ---------------------------    Sentry (Errors)       
-  create_circle                PostHog (Analytics)   
-  join_circle                  Supabase (Feedback)   
-  contribute                   Freighter Wallet API  
-  close_cycle (Keeper)       +-------------------------+
-  repay_debt                
-  get_status                
-  withdraw_deposit          
+|     Stellar / Soroban       | |  Observability & Data   |
+|       Smart Contract        | | ----------------------- |
+| --------------------------- | | • Sentry (Errors)       |
+| • create_circle             | | • PostHog (Analytics)   |
+| • join_circle               | | • Supabase (Feedback)   |
+| • contribute                | | • Freighter Wallet API  |
+| • close_cycle (Keeper)      | +-------------------------+
+| • repay_debt                |
+| • withdraw_deposit          |
+| • get_status                |
 +-----------------------------+
 ```
 
-### 1. Smart Contract (Soroban / Rust)
+- **Frontend**: React 19, TypeScript, TanStack Start, TanStack Router, TanStack Query (sole authoritative cache for on-chain state), Tailwind CSS, and Motion.
+- **Wallet**: Freighter API (`@stellar/freighter-api`) for cryptographic transaction signing.
+- **Blockchain**: Stellar Testnet with Soroban smart contracts (`@stellar/stellar-sdk`).
+- **Monitoring**: Sentry for production error tracking and exception handling.
+- **Analytics**: PostHog for privacy-preserving user funnel analytics.
+- **Feedback**: Supabase PostgreSQL database for user feedback widget submissions.
 
-- **State Management**: Persists circle configurations, member payout ordering, individual deposit records (10% holdback), cycle contribution states, and outstanding debt history.
-- **Permissionless Keeper Pattern**: `close_cycle` is callable by **any** signed account once `cycle_deadline` passes. It calculates collected funds, records missed payments as debt, pays the recipient, and advances the cycle.
-- **Debt Model**: Missed contributions create on-chain debt. Members repay via `repay_debt()`. Only after debt is cleared can their 10% entry deposit be withdrawn.
-
-### 2. Payout Order
-
-**Join-order (Manual)**: Members receive payouts in join sequence.
-
-**Randomised**: When the last seat is filled, the contract performs a deterministic Fisher-Yates shuffle using:
-- Seed bytes 07: `ledger().timestamp()` (u64)
-- Seed bytes 811: `ledger().sequence()` (u32)
-- Seed bytes 1215: constant `0xDEADBEEF`
-- PRNG: LCG (multiplier 6364136223846793005)
-
-This is fully on-chain and verifiable from the activation transaction. Ledger timestamp and sequence are predictable by validators  a documented trade-off for trust-based group savings.
-
-### 3. Cycle Timing - Accelerated Testnet vs Production
-
-> **Current Testnet Deployment is Accelerated Demo Mode.**
-> The current Green Belt Testnet deployment does NOT use real weekly/monthly schedules.
-> All cycles run in seconds for fast demonstration and review. This is intentional.
-
-#### Current Deployed Contract - Dual-Mode calculate_deadline
-
-The contract interprets \cycle_length_days: u32\ with this rule:
-
-| Value | Branch | Result |
-|-------|--------|--------|
-| value <= 3600 | **Seconds** | deadline = now + value (seconds) |
-| value > 3600 | Days | deadline = now + value x 86400 (seconds) |
-
-#### Accelerated Test Mode (current Testnet deployment)
-
-When \VITE_ENABLE_TEST_CYCLES=true\, the Create Circle form shows **only** these explicit test cycle options.
-The misleading Weekly/Monthly labels are **intentionally hidden** when test mode is active.
-
-| UI Label | Value sent | Actual deadline |
-|----------|-----------|----------------|
-| 10-second test cycle | 10 | now + 10 seconds |
-| 30-second test cycle | 30 | now + 30 seconds |
-| 60-second test cycle | 60 | now + 60 seconds |
-| 5-minute test cycle | 300 | now + 300 seconds |
-
-#### Why Production Cadences Cannot Work on the Current Contract
-
-There is no value that correctly expresses a 7-day deadline with the dual-mode contract:
-
-- Send 7: 7 <= 3600 -> seconds branch -> **7 seconds** (NOT 7 days)
-- Send 604800: 604800 > 3600 -> days branch -> **604800 x 86400 = ~1,656 years** (wrong)
-
-Proven by the \	est_production_604800_on_current_contract_is_wrong\ contract test.
-
-#### Production / Mainnet Plan & Implementation
- 
-The contract supports `create_circle_with_duration` accepting `cycle_duration_seconds: u64` (unambiguous, no dual-mode branch):
- 
-| UI Label | Value sent | Actual deadline |
-|----------|-----------|----------------|
-| Weekly (7 days) | 604,800 | now + 604,800s = exactly 7 days |
-| Every two weeks | 1,209,600 | now + 1,209,600s = exactly 14 days |
-| Monthly (30 days) | 2,592,000 | now + 2,592,000s = exactly 30 days |
- 
-Documented in `PRODUCTION_CADENCES_SECONDS` (`useSorobanQueries.ts`).
-Verified by `test_create_circle_with_duration_gives_exact_deadline` (45 total contract tests pass).
- 
-### 4. Frontend Data Architecture
- 
-- **TanStack Query** is the sole source of truth for all blockchain state. Page refresh or new browser reconstructs state from Soroban — no stale local data.
-- **Zustand** holds only transient UI state (wallet status, onboarding, payout modal).
-- All financial mutations require Freighter wallet signing.
- 
 ---
- 
-## 🔗 On-Chain Smart Contract
- 
+
+## Smart Contract
+
+The core ROSCA logic is implemented in Rust (`contracts/rosca/src/lib.rs`) on Stellar Soroban:
+
+| Function | Access | Description |
+|---|---|---|
+| `create_circle` | Organizer | Creates a savings circle with contribution amount, member limit, and cadence. |
+| `create_circle_with_duration` | Organizer | Creates a circle with an explicit `cycle_duration_seconds: u64` parameter. |
+| `join_circle` | Member | Locks the 10% security deposit and adds the member to the circle. |
+| `contribute` | Member | Deposits the member's cycle contribution before the deadline. |
+| `close_cycle` | Permissionless | Evaluates contributions, records missed payments as debt, pays recipient, and advances cycle. |
+| `repay_debt` | Member | Settles outstanding debt from previously missed contributions. |
+| `withdraw_deposit` | Member | Releases the 10% security deposit once the circle is completed and all debts are zero. |
+| `get_circle` | Public | Returns complete circle configuration, members, and cycle histories. |
+| `get_member_circles` | Public | Returns a list of circle IDs associated with a specific wallet address. |
+| `get_status` | Public | Returns lifecycle status (`Filling`, `Active`, `Completed`). |
+
+---
+
+## Current Testnet Contract
+
 - **Network**: Stellar Testnet
 - **Contract ID**: `CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`
 - **RPC Endpoint**: `https://soroban-testnet.stellar.org`
 - **Network Passphrase**: `Test SDF Network ; September 2015`
- 
+- **Horizon API**: `https://horizon-testnet.stellar.org`
+- **Stellar Expert Explorer**: [View Contract on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
+
 ---
- 
-## 🛠 Setup & Local Development
- 
+
+## Accelerated Testnet Mode
+
+To enable fast testing, demonstration, and evaluation without waiting days between cycles, Rotera supports accelerated test cycles on Stellar Testnet:
+
+When `VITE_ENABLE_TEST_CYCLES=true`:
+- `10` = **10 seconds**
+- `30` = **30 seconds**
+- `60` = **60 seconds**
+- `300` = **5 minutes** (300 seconds)
+
+> **Note**: Test cycle values represent literal seconds on the current dual-mode Testnet contract. The value `300` denotes a 5-minute testing cycle, **not** 300 days.
+
+---
+
+## Production Timing
+
+For production mainnet deployment, Rotera utilizes the `create_circle_with_duration` entrypoint which takes explicit `cycle_duration_seconds: u64`:
+
+| Production Cadence | Value (Seconds) | Actual Duration |
+|---|---|---|
+| Weekly | `604,800` | Exactly 7 days |
+| Bi-weekly | `1,209,600` | Exactly 14 days |
+| Monthly | `2,592,000` | Exactly 30 days |
+
+This architecture avoids dual-mode branching ambiguities and guarantees deterministic, accurate cycle deadlines across any time window.
+
+---
+
+## Security & Enforcement
+
+- **Cryptographic Authentication**: Every state-modifying action requires strict `member.require_auth()` cryptographic signatures from the caller's Freighter wallet.
+- **Double-Payment Protection**: The contract verifies whether a member has already contributed to the active cycle, rejecting duplicate payments.
+- **Strict Membership Bounds**: Circles enforce fixed capacity (3–12 members); non-members cannot contribute or trigger member actions.
+- **Deadline Verification**: Contributions cannot be submitted after the cycle deadline, ensuring predictable cycle transitions.
+- **Deposit Locking**: The 10% holdback deposit is strictly locked in the contract until the entire circle finishes and the member's outstanding debt is zero.
+- **Safe Turn Advancement**: Zero-contribution cycles retry without consuming the recipient's turn or compounding uncharged debt.
+
+---
+
+## Local Development
+
 ### Prerequisites
 - Node.js (v18+) or Bun
-- Rust + `wasm32-unknown-unknown` target (for contract builds)
-- Freighter Browser Wallet Extension
- 
-### Installation
- 
+- Rust toolchain (`rustup`) + `wasm32-unknown-unknown` target
+- Freighter Browser Wallet Extension ([freighter.app](https://www.freighter.app/))
+
+### Installation & Setup
+
 ```bash
+# 1. Clone the repository
 git clone https://github.com/subhadip890/Rotera.git
 cd Rotera
+
+# 2. Install dependencies
 npm install
+
+# 3. Configure environment variables
 cp .env.example .env
+
+# 4. Start local development server
 npm run dev
 ```
- 
-### Key Environment Variables
- 
+
+### Verification Commands
+
+```bash
+# Run full verification suite (typecheck + lint + build + contract tests)
+npm run verify
+
+# Run individual checks
+npm run typecheck       # TypeScript check (tsc --noEmit)
+npm run lint            # ESLint check
+npm run build           # Vite production build
+npm run test:contract   # Cargo unit tests for Soroban contract
+```
+
+---
+
+## Environment Variables
+
+Configure the following environment variables in `.env` (refer to `.env.example`):
+
 | Variable | Description |
-|----------|-------------|
-| `VITE_SOROBAN_CONTRACT_ID` | Deployed contract address |
-| `VITE_SOROBAN_RPC_URL` | Soroban RPC endpoint |
-| `VITE_ENABLE_TEST_CYCLES` | `"true"` → shows quick-test cycle options (10s/30s/60s/5min) in Create form |
-| `VITE_POSTHOG_KEY` | PostHog analytics key |
-| `VITE_SENTRY_DSN` | Sentry error tracking DSN |
-| `VITE_SUPABASE_URL` | Supabase URL for feedback |
- 
-### Running Contract Tests
- 
+|---|---|
+| `VITE_SOROBAN_CONTRACT_ID` | Deployed Stellar Soroban ROSCA contract ID |
+| `VITE_SOROBAN_RPC_URL` | Soroban RPC endpoint (e.g. `https://soroban-testnet.stellar.org`) |
+| `VITE_ENABLE_TEST_CYCLES` | Set to `"true"` to enable accelerated testnet cycle options (10s, 30s, 60s, 5min) |
+| `VITE_SENTRY_DSN` | Sentry DSN endpoint for error monitoring |
+| `VITE_POSTHOG_KEY` | PostHog API project key for analytics |
+| `VITE_POSTHOG_HOST` | PostHog ingest host URL |
+| `VITE_SUPABASE_URL` | Supabase project URL for user feedback collection |
+| `VITE_SUPABASE_ANON_KEY` | Supabase public anonymous key |
+
+---
+
+## Testing
+
+The Soroban smart contract is tested via comprehensive Rust unit tests:
+
 ```bash
 cd contracts/rosca
 cargo test
 ```
- 
-**45 tests pass**, covering:
-- Zero-contribution cycle payout turn preservation (Issue 1)
-- `create_circle_with_duration` exact seconds deadline calculation (Issue 2)
-- Typed `RoteraError` error codes on all entrypoints (Issue 3)
-- Defense-in-depth zero-deposit check on tiny contribution amounts (Issue 4)
-- Joining, activation, contribution flow, full rotation, and debt repayment
-- Regression coverage for non-existent circle ID handling (`test_contribute_nonexistent_circle_panics`).
- 
+
+**Test Results**: `47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`
+
+Test suite coverage includes:
+- Circle creation, configuration validation, and member boundary limits
+- Deterministic Fisher-Yates payout ordering shuffle and activation logic
+- Cycle contributions, double-payment rejection, and deadline bounds
+- Payout distribution, keeper cycle closures, and turn preservation on stalled cycles
+- Repeated zero-contribution retry idempotency and debt tracking
+- Partial and full debt settlement via `repay_debt`
+- Security deposit locking, debt forfeiture, and withdrawal after rotation completion
+- Production cadence calculation and explicit duration parameter handling
+
 ---
- 
-## ⚖️ Known Trade-offs
- 
-1. **Permissionless Keeper**: `close_cycle` must be triggered externally after deadline. Anyone can call it.
-2. **Shortfall Handling**: Missed contributions reduce payout and create on-chain debt. `repay_debt()` lets members settle.
-3. **Early-Exit Protection**: 10% entry deposit held until circle completion and full debt clearance.
-4. **Randomness Source**: Ledger timestamp + sequence — deterministic but predictable by validators. Acceptable for trust-based group savings.
-5. **Read-Only Simulation Account**: Soroban read calls use a Stellar Foundation public account solely for fee simulation — it never signs user transactions or holds funds.
- 
+
+## Deployment
+
+- **Smart Contract**: Deployed and active on Stellar Testnet (`CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`).
+- **Frontend**: Single-page application built with TanStack Start/Vite, deployable to Cloudflare Pages, Vercel, or Netlify.
+
 ---
- 
-## 📋 Submission Checklist
- 
-- [x] **Public GitHub Repository**: [github.com/subhadip890/Rotera](https://github.com/subhadip890/Rotera)
-- [x] **15+ Meaningful Commits**: Clean Git commit history
-- [x] **Stellar Testnet Deployment**: `CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`
-- [x] **Real Wallet Support**: Freighter API — all transactions require wallet signing
-- [x] **Analytics & Monitoring**: PostHog funnel tracking + Sentry error capture
-- [x] **Feedback Collection**: Supabase-backed feedback widget
-- [x] **Mobile Responsive**: Tested across desktop and mobile
-- [x] **45 Contract Tests**: Full test suite covering all core functions + security hardening + regression tests
+
+## Green Belt Submission Checklist
+
+- [x] **Public GitHub Repository**: Clean codebase with complete documentation and commit history
+- [x] **Working Stellar Testnet Contract**: Deployed and functional on Stellar Testnet
+- [x] **Freighter Wallet Integration**: Seamless on-chain signing for creation, joining, payments, and settlements
+- [x] **Smart Contract Test Suite**: 47 automated tests covering all core and edge cases
+- [x] **Automated CI Workflow**: GitHub Actions verifying TypeScript, ESLint, production build, and contract tests
+- [x] **Observability & Analytics**: Integrated Sentry error capture, PostHog telemetry, and Supabase feedback
+- [x] **Mobile Responsive Design**: Modern UI designed for both desktop and mobile browsers

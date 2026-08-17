@@ -19,18 +19,15 @@ import {
 // ─── Config ────────────────────────────────────────────────────────────────
 
 const SOROBAN_RPC_URL =
-  import.meta.env.VITE_SOROBAN_RPC_URL ||
-  "https://soroban-testnet.stellar.org";
+  import.meta.env.VITE_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
 
 const CONTRACT_ID = import.meta.env.VITE_SOROBAN_CONTRACT_ID || "";
 
 const NETWORK_PASSPHRASE =
-  import.meta.env.VITE_SOROBAN_NETWORK_PASSPHRASE ||
-  "Test SDF Network ; September 2015";
+  import.meta.env.VITE_SOROBAN_NETWORK_PASSPHRASE || "Test SDF Network ; September 2015";
 
 // Native XLM asset contract on Testnet (56 chars, ends with YSC)
-const NATIVE_TOKEN_ADDRESS =
-  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+const NATIVE_TOKEN_ADDRESS = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -106,9 +103,7 @@ async function simulateTransaction(txXdr: string, label?: string): Promise<any> 
 }
 
 async function getAccount(publicKey: string): Promise<{ sequence: string }> {
-  const res = await fetch(
-    `https://horizon-testnet.stellar.org/accounts/${publicKey}`,
-  );
+  const res = await fetch(`https://horizon-testnet.stellar.org/accounts/${publicKey}`);
   if (!res.ok) {
     if (res.status === 404) {
       throw new Error(
@@ -155,13 +150,10 @@ async function buildContractTx(
   const account = await getAccount(sourcePublicKey);
   const contract = new Contract(CONTRACT_ID);
 
-  const builtTx = new TransactionBuilder(
-    new sdk.Account(sourcePublicKey, account.sequence),
-    {
-      fee: "1000000", // 0.1 XLM max fee; simulation will set actual
-      networkPassphrase: NETWORK_PASSPHRASE,
-    },
-  )
+  const builtTx = new TransactionBuilder(new sdk.Account(sourcePublicKey, account.sequence), {
+    fee: "1000000", // 0.1 XLM max fee; simulation will set actual
+    networkPassphrase: NETWORK_PASSPHRASE,
+  })
     .addOperation(contract.call(method, ...args))
     .setTimeout(300)
     .build();
@@ -260,22 +252,11 @@ export async function getCircleStateOnChain(
     const contract = new sdk.Contract(CONTRACT_ID);
     const account = await getAccount(SIM_ACCOUNT).catch(() => ({ sequence: "0" }));
 
-    const dummyTx = new sdk.TransactionBuilder(
-      new sdk.Account(
-        SIM_ACCOUNT,
-        account.sequence,
-      ),
-      {
-        fee: "100",
-        networkPassphrase: NETWORK_PASSPHRASE,
-      },
-    )
-      .addOperation(
-        contract.call(
-          "get_status",
-          sdk.nativeToScVal(numId, { type: "u64" }),
-        ),
-      )
+    const dummyTx = new sdk.TransactionBuilder(new sdk.Account(SIM_ACCOUNT, account.sequence), {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call("get_status", sdk.nativeToScVal(numId, { type: "u64" })))
       .setTimeout(300)
       .build();
 
@@ -489,9 +470,7 @@ async function getCircleIdFromTxHash(
                 : null;
 
         const sorobanMeta =
-          metaVal && typeof metaVal.sorobanMeta === "function"
-            ? metaVal.sorobanMeta()
-            : null;
+          metaVal && typeof metaVal.sorobanMeta === "function" ? metaVal.sorobanMeta() : null;
 
         // Try direct return value ScVal
         const returnValScVal = sorobanMeta?.returnValue ? sorobanMeta.returnValue() : null;
@@ -542,7 +521,7 @@ async function getCircleIdFromTxHash(
   //    Throw a clear error so the UI can surface it to the user.
   throw new Error(
     "Circle was created on-chain but its ID could not be read back from the transaction. " +
-    "Check the transaction on stellar.expert and use the returned circle ID manually, or retry.",
+      "Check the transaction on stellar.expert and use the returned circle ID manually, or retry.",
   );
 }
 
@@ -554,10 +533,10 @@ export async function getMemberCirclesOnChain(userAddress: string): Promise<numb
   try {
     const sdk = await getSdk();
     const contract = new sdk.Contract(CONTRACT_ID);
-    const dummyTx = new sdk.TransactionBuilder(
-      new sdk.Account(userAddress, "0"),
-      { fee: "100", networkPassphrase: NETWORK_PASSPHRASE },
-    )
+    const dummyTx = new sdk.TransactionBuilder(new sdk.Account(userAddress, "0"), {
+      fee: "100",
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
       .addOperation(contract.call("get_member_circles", scAddress(sdk, userAddress)))
       .setTimeout(300)
       .build();
@@ -589,16 +568,11 @@ export async function getMemberCirclesOnChain(userAddress: string): Promise<numb
 /**
  * Join a circle on-chain (pays deposit from member wallet to contract).
  */
-export async function submitJoinCircle(
-  circleId: string | number,
-): Promise<{ txHash: string }> {
+export async function submitJoinCircle(circleId: string | number): Promise<{ txHash: string }> {
   const userAddress = await connectFreighter();
   const sdk = await getSdk();
 
-  const args = [
-    scAddress(sdk, userAddress),
-    sdk.nativeToScVal(BigInt(circleId), { type: "u64" }),
-  ];
+  const args = [scAddress(sdk, userAddress), sdk.nativeToScVal(BigInt(circleId), { type: "u64" })];
 
   const txXdr = await buildContractTx("join_circle", args, userAddress);
   const signedXdr = await signStellarTx(txXdr, NETWORK_PASSPHRASE);
@@ -630,10 +604,7 @@ export async function submitContribute(
   const userAddress = await connectFreighter();
   const sdk = await getSdk();
 
-  const args = [
-    scAddress(sdk, userAddress),
-    sdk.nativeToScVal(BigInt(circleId), { type: "u64" }),
-  ];
+  const args = [scAddress(sdk, userAddress), sdk.nativeToScVal(BigInt(circleId), { type: "u64" })];
 
   const txXdr = await buildContractTx("contribute", args, userAddress);
   const signedXdr = await signStellarTx(txXdr, NETWORK_PASSPHRASE);
@@ -703,10 +674,7 @@ export async function submitWithdrawDeposit(
   const userAddress = await connectFreighter();
   const sdk = await getSdk();
 
-  const args = [
-    scAddress(sdk, userAddress),
-    sdk.nativeToScVal(BigInt(circleId), { type: "u64" }),
-  ];
+  const args = [scAddress(sdk, userAddress), sdk.nativeToScVal(BigInt(circleId), { type: "u64" })];
 
   const txXdr = await buildContractTx("withdraw_deposit", args, userAddress);
   const signedXdr = await signStellarTx(txXdr, NETWORK_PASSPHRASE);

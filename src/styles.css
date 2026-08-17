@@ -125,7 +125,6 @@
   color: var(--ink);
 }
 
-
 @utility ring-spin {
   transform-origin: 50% 50%;
   animation: rotera-spin 90s linear infinite;

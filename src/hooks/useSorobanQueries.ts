@@ -21,10 +21,7 @@ import {
   stroopsToXlm,
   xlmToStroops,
 } from "@/lib/soroban";
-import {
-  fetchCircleEventsFromSupabase,
-  subscribeCircleEvents,
-} from "@/lib/supabase";
+import { fetchCircleEventsFromSupabase, subscribeCircleEvents } from "@/lib/supabase";
 import { captureException } from "@/lib/sentry";
 import { useRotera } from "@/store/useRotera";
 
@@ -59,7 +56,7 @@ export function useCircleState(circleId: string | number | null | undefined) {
     queryKey: ["circle", cid],
     queryFn: () => getCircleStateOnChain(circleId!),
     enabled: !!cid && cid !== "sunday-six" && cid !== "demo",
-    refetchInterval: 15_000,   // poll every 15s as fallback
+    refetchInterval: 15_000, // poll every 15s as fallback
     staleTime: 8_000,
     retry: 2,
   });
@@ -100,7 +97,7 @@ export function useCreateCircleMutation() {
   return useMutation({
     mutationFn: (params: {
       name: string;
-      amount: number;      // XLM display value
+      amount: number; // XLM display value
       cadence: string;
       memberCount: number;
       payoutOrderType?: "Manual" | "RandomPending";
@@ -132,8 +129,7 @@ export function useJoinCircleMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ circleId }: { circleId: string | number }) =>
-      submitJoinCircle(circleId),
+    mutationFn: ({ circleId }: { circleId: string | number }) => submitJoinCircle(circleId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["circle", String(variables.circleId)],
@@ -153,13 +149,8 @@ export function useContributeMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
-      circleId,
-      cycleNumber,
-    }: {
-      circleId: string | number;
-      cycleNumber: number;
-    }) => submitContribute(circleId, cycleNumber),
+    mutationFn: ({ circleId, cycleNumber }: { circleId: string | number; cycleNumber: number }) =>
+      submitContribute(circleId, cycleNumber),
     onSuccess: (_, variables) => {
       // Force fresh chain data after contribution
       queryClient.invalidateQueries({
@@ -217,8 +208,7 @@ export function useWithdrawDepositMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ circleId }: { circleId: string | number }) =>
-      submitWithdrawDeposit(circleId),
+    mutationFn: ({ circleId }: { circleId: string | number }) => submitWithdrawDeposit(circleId),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: ["circle", String(variables.circleId)],
@@ -328,7 +318,7 @@ export function testCycleDuration(label: string): number {
   const lower = label.toLowerCase();
   if (lower === "10s" || lower === "10 seconds" || lower === "10-second test cycle") return 10;
   if (lower === "30s" || lower === "30 seconds" || lower === "30-second test cycle") return 30;
-  if (lower === "60s" || lower === "1 minute"  || lower === "60-second test cycle") return 60;
+  if (lower === "60s" || lower === "1 minute" || lower === "60-second test cycle") return 60;
   if (lower === "5min" || lower === "5 minutes" || lower === "5-minute test cycle") return 300;
   // Default to 30s for any unrecognised test label
   console.warn(`[testCycleDuration] Unrecognised label "${label}" — defaulting to 30 seconds`);

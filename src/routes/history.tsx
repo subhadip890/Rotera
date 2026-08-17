@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { formatAmount, formatCycleDuration } from "@/lib/rotera";
@@ -36,9 +35,7 @@ function History() {
   // Auto-resolve effective circle ID: stored active ID -> latest user circle -> fallback "3" -> "1"
   const defaultCircleId =
     storedCircleId ||
-    (userCircles && userCircles.length > 0
-      ? String(userCircles[userCircles.length - 1])
-      : "3");
+    (userCircles && userCircles.length > 0 ? String(userCircles[userCircles.length - 1]) : "3");
 
   const [selectedCircleId, setSelectedCircleId] = useState<string>(defaultCircleId);
 
@@ -84,7 +81,10 @@ function History() {
 
         {/* Circle selector when user has multiple circles or wants to test another ID */}
         <div className="mt-6 flex items-center justify-center gap-2">
-          <label htmlFor="circle-select-empty" className="text-sm font-medium text-muted-foreground">
+          <label
+            htmlFor="circle-select-empty"
+            className="text-sm font-medium text-muted-foreground"
+          >
             Select Circle ID:
           </label>
           <select
@@ -103,7 +103,8 @@ function History() {
 
         {isError && (
           <p className="mt-4 text-sm text-rust">
-            Could not connect to circle #{effectiveCircleId} on the contract. Check network or try another Circle ID.
+            Could not connect to circle #{effectiveCircleId} on the contract. Check network or try
+            another Circle ID.
           </p>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -165,7 +166,10 @@ function History() {
 
         {/* Dropdown to switch between circles */}
         <div className="flex items-center gap-2">
-          <label htmlFor="circle-select-active" className="text-xs font-medium text-muted-foreground">
+          <label
+            htmlFor="circle-select-active"
+            className="text-xs font-medium text-muted-foreground"
+          >
             Circle:
           </label>
           <select
@@ -178,19 +182,17 @@ function History() {
             }}
             className="input max-w-[140px] px-3 py-1.5 text-sm"
           >
-            {userCircles && userCircles.length > 0 ? (
-              userCircles.map((id) => (
-                <option key={id} value={String(id)}>
-                  Circle #{id}
-                </option>
-              ))
-            ) : (
-              ["1", "2", "3", "4", "5"].map((id) => (
-                <option key={id} value={id}>
-                  Circle #{id}
-                </option>
-              ))
-            )}
+            {userCircles && userCircles.length > 0
+              ? userCircles.map((id) => (
+                  <option key={id} value={String(id)}>
+                    Circle #{id}
+                  </option>
+                ))
+              : ["1", "2", "3", "4", "5"].map((id) => (
+                  <option key={id} value={id}>
+                    Circle #{id}
+                  </option>
+                ))}
           </select>
         </div>
       </div>
@@ -220,9 +222,7 @@ function History() {
                   className={`h-px flex-1 ${i === circle.payout_order.length - 1 ? "bg-transparent" : done ? "bg-verdigris" : "bg-border"}`}
                 />
               </div>
-              <span className="num mt-2 text-xs text-muted-foreground">
-                Cycle {i + 1}
-              </span>
+              <span className="num mt-2 text-xs text-muted-foreground">Cycle {i + 1}</span>
               <span className={`num text-sm ${current ? "font-semibold" : ""}`}>{name}</span>
             </li>
           );
@@ -261,9 +261,7 @@ function History() {
                 </span>
                 <span className="num font-medium">{recipientName}</span>
                 <span className="num ml-auto text-lg">{formatAmount(amountXlm)} XLM</span>
-                <span className="num w-28 text-right text-sm text-muted-foreground">
-                  {dateStr}
-                </span>
+                <span className="num w-28 text-right text-sm text-muted-foreground">{dateStr}</span>
                 {missedCount > 0 && (
                   <p className="w-full text-sm text-rust">
                     {missedCount} member{missedCount > 1 ? "s" : ""} missed — pot reduced by{" "}
@@ -281,11 +279,21 @@ function History() {
       <table className="mt-4 w-full overflow-hidden rounded-xl border border-border bg-chalk text-left">
         <thead>
           <tr className="border-b border-border text-sm text-muted-foreground">
-            <th scope="col" className="px-5 py-3 font-medium">Member</th>
-            <th scope="col" className="px-5 py-3 font-medium">On time</th>
-            <th scope="col" className="px-5 py-3 font-medium">Missed</th>
-            <th scope="col" className="px-5 py-3 font-medium">Debt</th>
-            <th scope="col" className="px-5 py-3 font-medium">Wallet</th>
+            <th scope="col" className="px-5 py-3 font-medium">
+              Member
+            </th>
+            <th scope="col" className="px-5 py-3 font-medium">
+              On time
+            </th>
+            <th scope="col" className="px-5 py-3 font-medium">
+              Missed
+            </th>
+            <th scope="col" className="px-5 py-3 font-medium">
+              Debt
+            </th>
+            <th scope="col" className="px-5 py-3 font-medium">
+              Wallet
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -298,7 +306,9 @@ function History() {
               >
                 {m.lateCount}
               </td>
-              <td className={`num px-5 py-3.5 ${m.debt > BigInt(0) ? "text-rust" : "text-muted-foreground"}`}>
+              <td
+                className={`num px-5 py-3.5 ${m.debt > BigInt(0) ? "text-rust" : "text-muted-foreground"}`}
+              >
                 {m.debt > BigInt(0) ? `${stroopsToXlm(m.debt)} XLM` : "—"}
               </td>
               <td className="num px-5 py-3.5 text-xs text-muted-foreground">
@@ -320,10 +330,18 @@ function History() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
-                  <th scope="col" className="px-5 py-3 font-medium">Event</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Wallet</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Tx Hash</th>
-                  <th scope="col" className="px-5 py-3 font-medium">Time</th>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    Event
+                  </th>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    Wallet
+                  </th>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    Tx Hash
+                  </th>
+                  <th scope="col" className="px-5 py-3 font-medium">
+                    Time
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -365,8 +383,8 @@ function History() {
       {/* Chain info */}
       <div className="mt-8 rounded-xl border border-border bg-chalk p-4 text-sm text-muted-foreground">
         <p>
-          All circle state on this page is read live from the Stellar Testnet smart contract.
-          Circle #{effectiveCircleId} · contract{" "}
+          All circle state on this page is read live from the Stellar Testnet smart contract. Circle
+          #{effectiveCircleId} · contract{" "}
           <a
             href={`https://stellar.expert/explorer/testnet/contract/${import.meta.env.VITE_SOROBAN_CONTRACT_ID}`}
             target="_blank"
@@ -385,4 +403,3 @@ function truncateAddr(addr: string): string {
   if (!addr || addr.length <= 12) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
-

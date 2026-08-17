@@ -205,36 +205,32 @@ export function Roundtable({
 
         {/* centre: the pot */}
         {showLabels && (
-        <>
-        <text
-          x={cx}
-          y={cy - 4}
-          textAnchor="middle"
-          fill={COLORS.ink}
-          fillOpacity="0.55"
-          fontSize="11"
-          letterSpacing="1.4"
-          fontFamily="Public Sans, sans-serif"
-        >
-          {currentSeat >= 0 ? "THIS CYCLE" : "STATUS"}
-        </text>
-        <text
-          x={cx}
-          y={cy + 20}
-          textAnchor="middle"
-          fill={COLORS.ink}
-          fontSize={
-            currentSeat >= 0 && (seats[currentSeat]?.name?.length ?? 0) > 10
-              ? "17"
-              : "22"
-          }
-          fontFamily="IBM Plex Mono, monospace"
-        >
-          {currentSeat >= 0
-            ? formatCenterLabel(seats[currentSeat]?.name ?? "—")
-            : "Filling"}
-        </text>
-        </>
+          <>
+            <text
+              x={cx}
+              y={cy - 4}
+              textAnchor="middle"
+              fill={COLORS.ink}
+              fillOpacity="0.55"
+              fontSize="11"
+              letterSpacing="1.4"
+              fontFamily="Public Sans, sans-serif"
+            >
+              {currentSeat >= 0 ? "THIS CYCLE" : "STATUS"}
+            </text>
+            <text
+              x={cx}
+              y={cy + 20}
+              textAnchor="middle"
+              fill={COLORS.ink}
+              fontSize={
+                currentSeat >= 0 && (seats[currentSeat]?.name?.length ?? 0) > 10 ? "17" : "22"
+              }
+              fontFamily="IBM Plex Mono, monospace"
+            >
+              {currentSeat >= 0 ? formatCenterLabel(seats[currentSeat]?.name ?? "—") : "Filling"}
+            </text>
+          </>
         )}
       </svg>
       {caption && (

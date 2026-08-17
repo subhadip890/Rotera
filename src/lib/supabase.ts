@@ -1,6 +1,6 @@
 /**
  * SQL MIGRATION: Paste into Supabase SQL Editor to support realtime events and user feedback:
- * 
+ *
  * -- Table: feedback
  * create table if not exists feedback (
  *   id uuid default gen_random_uuid() primary key,
@@ -10,7 +10,7 @@
  *   page_url text,
  *   created_at timestamptz default now()
  * );
- * 
+ *
  * -- Table: circle_events
  * create table if not exists circle_events (
  *   id uuid default gen_random_uuid() primary key,
@@ -20,14 +20,14 @@
  *   data jsonb default '{}'::jsonb,
  *   created_at timestamptz default now()
  * );
- * 
+ *
  * alter publication supabase_realtime add table circle_events;
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
 /**
  * Returns true only when both credentials look like real Supabase values.
@@ -40,21 +40,19 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 function isRealSupabaseConfig(url: string, key: string): boolean {
   if (!url || !key) return false;
   // URL must be a valid-looking supabase.co endpoint
-  if (!url.startsWith('https://') || !url.includes('.supabase.co')) return false;
+  if (!url.startsWith("https://") || !url.includes(".supabase.co")) return false;
   // Key must look like a JWT: three dot-separated segments, >= 100 chars total
-  const parts = key.split('.');
+  const parts = key.split(".");
   if (parts.length !== 3) return false;
   if (key.length < 100) return false;
   // Reject obvious placeholders
-  if (key.endsWith('.dummy') || key.toLowerCase().includes('placeholder')) return false;
+  if (key.endsWith(".dummy") || key.toLowerCase().includes("placeholder")) return false;
   return true;
 }
 
 const CLIENT_READY = isRealSupabaseConfig(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export const supabase = CLIENT_READY
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+export const supabase = CLIENT_READY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 export interface FeedbackData {
   wallet_address?: string | null;
@@ -76,27 +74,29 @@ export async function submitFeedbackToSupabase(data: FeedbackData): Promise<bool
   if (!supabase) {
     // No real credentials configured — log locally for dev/demo purposes.
     // The FeedbackWidget will show success, but nothing is persisted.
-    console.log('[Rotera Feedback] Supabase not configured — logged locally:', data);
+    console.log("[Rotera Feedback] Supabase not configured — logged locally:", data);
     return false; // Return false so the caller knows it was NOT persisted
   }
 
   try {
-    const { error } = await supabase.from('feedback').insert([{
-      wallet_address: data.wallet_address ?? null,
-      rating: data.rating,
-      comment: data.comment?.trim() ?? '',
-      page: data.page ?? (typeof window !== 'undefined' ? window.location.pathname : '/'),
-      created_at: new Date().toISOString(),
-    }]);
+    const { error } = await supabase.from("feedback").insert([
+      {
+        wallet_address: data.wallet_address ?? null,
+        rating: data.rating,
+        comment: data.comment?.trim() ?? "",
+        page: data.page ?? (typeof window !== "undefined" ? window.location.pathname : "/"),
+        created_at: new Date().toISOString(),
+      },
+    ]);
 
     if (error) {
-      console.error('[Rotera Feedback] Insert error:', error.message, error.code);
+      console.error("[Rotera Feedback] Insert error:", error.message, error.code);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.error('[Rotera Feedback] Unexpected error:', err);
+    console.error("[Rotera Feedback] Unexpected error:", err);
     return false;
   }
 }
@@ -106,7 +106,13 @@ export async function submitFeedbackToSupabase(data: FeedbackData): Promise<bool
 export interface CircleEventRecord {
   id?: number;
   circle_id: string;
-  event_type: 'circle_created' | 'circle_joined' | 'contribution' | 'cycle_closed' | 'debt_repaid' | 'deposit_withdrawn';
+  event_type:
+    | "circle_created"
+    | "circle_joined"
+    | "contribution"
+    | "cycle_closed"
+    | "debt_repaid"
+    | "deposit_withdrawn";
   wallet_address?: string | null;
   amount_xlm?: number | null;
   tx_hash?: string | null;
@@ -121,24 +127,26 @@ export async function recordCircleEventToSupabase(event: CircleEventRecord): Pro
   if (!supabase) return false;
 
   try {
-    const { error } = await supabase.from('circle_events').insert([{
-      circle_id: String(event.circle_id),
-      event_type: event.event_type,
-      wallet_address: event.wallet_address ?? null,
-      amount_xlm: event.amount_xlm ?? null,
-      tx_hash: event.tx_hash ?? null,
-      details: event.details ?? {},
-      created_at: event.created_at || new Date().toISOString(),
-    }]);
+    const { error } = await supabase.from("circle_events").insert([
+      {
+        circle_id: String(event.circle_id),
+        event_type: event.event_type,
+        wallet_address: event.wallet_address ?? null,
+        amount_xlm: event.amount_xlm ?? null,
+        tx_hash: event.tx_hash ?? null,
+        details: event.details ?? {},
+        created_at: event.created_at || new Date().toISOString(),
+      },
+    ]);
 
     if (error) {
-      console.warn('[Rotera Supabase Event] Insert error:', error.message);
+      console.warn("[Rotera Supabase Event] Insert error:", error.message);
       return false;
     }
 
     return true;
   } catch (err) {
-    console.warn('[Rotera Supabase Event] Unexpected error:', err);
+    console.warn("[Rotera Supabase Event] Unexpected error:", err);
     return false;
   }
 }
@@ -146,21 +154,26 @@ export async function recordCircleEventToSupabase(event: CircleEventRecord): Pro
 /**
  * Fetch historical events for a circle (or all circles) from Supabase.
  */
-export async function fetchCircleEventsFromSupabase(circleId?: string | number | null): Promise<CircleEventRecord[]> {
+export async function fetchCircleEventsFromSupabase(
+  circleId?: string | number | null,
+): Promise<CircleEventRecord[]> {
   if (!supabase) return [];
 
   try {
-    let query = supabase.from('circle_events').select('*').order('created_at', { ascending: false });
+    let query = supabase
+      .from("circle_events")
+      .select("*")
+      .order("created_at", { ascending: false });
 
     if (circleId) {
-      query = query.eq('circle_id', String(circleId));
+      query = query.eq("circle_id", String(circleId));
     }
 
     const { data, error } = await query;
     if (error || !data) return [];
     return data as CircleEventRecord[];
   } catch (err) {
-    console.warn('[Rotera Supabase Event Fetch] Error:', err);
+    console.warn("[Rotera Supabase Event Fetch] Error:", err);
     return [];
   }
 }
@@ -179,11 +192,11 @@ export function subscribeCircleEvents(
     const channel = supabase
       .channel(`circle_events_${circleId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'circle_events',
+          event: "INSERT",
+          schema: "public",
+          table: "circle_events",
           filter: `circle_id=eq.${String(circleId)}`,
         },
         (payload) => {
@@ -198,9 +211,7 @@ export function subscribeCircleEvents(
       supabase.removeChannel(channel);
     };
   } catch (err) {
-    console.warn('[Rotera Supabase Event Subscribe] Error:', err);
+    console.warn("[Rotera Supabase Event Subscribe] Error:", err);
     return () => {};
   }
 }
-
-

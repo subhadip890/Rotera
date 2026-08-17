@@ -3,11 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
 import { formatCycleDuration } from "@/lib/rotera";
-import {
-  useJoinCircleMutation,
-  useCircleState,
-  stroopsToXlm,
-} from "@/hooks/useSorobanQueries";
+import { useJoinCircleMutation, useCircleState, stroopsToXlm } from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/join/$circleId")({
   head: () => ({
@@ -53,7 +49,7 @@ function JoinCircle() {
       const res = await joinMutation.mutateAsync({ circleId });
       setTxHash(res.txHash);
       setJoined(true);
-      setActiveCircleId(circleId);  // persist for dashboard use
+      setActiveCircleId(circleId); // persist for dashboard use
     } catch (err: any) {
       setError(err?.message || "Join transaction failed. Check your wallet and try again.");
     }
@@ -86,14 +82,10 @@ function JoinCircle() {
       }));
 
   // Figure out which seat the current user would occupy
-  const userSeatIndex = circle
-    ? circle.payout_order.findIndex((a) => a === address)
-    : -1;
-  const currentSeat = userSeatIndex >= 0 ? userSeatIndex : circle?.payout_order.length ?? 0;
+  const userSeatIndex = circle ? circle.payout_order.findIndex((a) => a === address) : -1;
+  const currentSeat = userSeatIndex >= 0 ? userSeatIndex : (circle?.payout_order.length ?? 0);
 
-  const contributionXlm = circle
-    ? stroopsToXlm(circle.contribution_amount)
-    : null;
+  const contributionXlm = circle ? stroopsToXlm(circle.contribution_amount) : null;
 
   const totalSeats = circle?.member_count ?? 6;
   const seatsAvailable = circle ? totalSeats - circle.payout_order.length : 0;
@@ -125,12 +117,10 @@ function JoinCircle() {
 
         {circle && (
           <>
-            <h1 className="mt-3 text-4xl font-semibold">
-              Join {circle.name}
-            </h1>
+            <h1 className="mt-3 text-4xl font-semibold">Join {circle.name}</h1>
             <p className="mt-3 max-w-xl text-muted-foreground">
-              {totalSeats} people, {totalSeats} cycles, one payout each.
-              Read the agreement below — after you join, none of it can change.
+              {totalSeats} people, {totalSeats} cycles, one payout each. Read the agreement below —
+              after you join, none of it can change.
             </p>
 
             <h2 className="mt-10 text-xl font-semibold">What you're agreeing to</h2>
@@ -153,10 +143,7 @@ function JoinCircle() {
 
             <dl className="mt-8 grid gap-3 rounded-xl border border-border bg-chalk p-5 sm:grid-cols-3">
               <Row k="Contribution" v={`${contributionXlm} XLM`} />
-              <Row
-                k="Cycle length"
-                v={formatCycleDuration(circle.cycle_length_days)}
-              />
+              <Row k="Cycle length" v={formatCycleDuration(circle.cycle_length_days)} />
               <Row k="Seats left" v={`${seatsAvailable} of ${totalSeats}`} />
             </dl>
 
@@ -174,9 +161,7 @@ function JoinCircle() {
                       <span className="num w-6 text-sm text-muted-foreground">
                         {String(i + 1).padStart(2, "0")}
                       </span>
-                      <span className="num text-sm font-medium">
-                        {truncateAddr(addr)}
-                      </span>
+                      <span className="num text-sm font-medium">{truncateAddr(addr)}</span>
                       {addr === address && (
                         <span className="ml-auto rounded-full bg-verdigris/15 px-2 py-0.5 text-xs text-verdigris">
                           You
@@ -232,14 +217,16 @@ function JoinCircle() {
               <p className="font-medium text-rust">This circle is full — no seats available.</p>
             ) : alreadyJoined ? (
               <p className="font-medium text-verdigris">
-                You're already in this circle. The circle activates when all {totalSeats} seats are filled.
+                You're already in this circle. The circle activates when all {totalSeats} seats are
+                filled.
               </p>
             ) : connected ? (
               <>
                 <p className="font-medium">Wallet connected — a seat is waiting for you.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Joining requires a small deposit ({circle ? stroopsToXlm(circle.deposit_amount) : "—"} XLM)
-                  held by the contract until the circle completes.
+                  Joining requires a small deposit (
+                  {circle ? stroopsToXlm(circle.deposit_amount) : "—"} XLM) held by the contract
+                  until the circle completes.
                 </p>
 
                 <button
@@ -254,7 +241,8 @@ function JoinCircle() {
               <>
                 <p className="font-medium">Connect a wallet to claim your seat</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Freighter wallet required. Nothing leaves your wallet until you approve the deposit.
+                  Freighter wallet required. Nothing leaves your wallet until you approve the
+                  deposit.
                 </p>
                 <button
                   onClick={() => void connect()}

@@ -118,9 +118,7 @@ export function FeedbackWidget() {
                   className="mt-1.5 w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm"
                   placeholder="The countdown was confusing…"
                 />
-                {error && (
-                  <p className="mt-2 text-xs font-medium text-destructive">{error}</p>
-                )}
+                {error && <p className="mt-2 text-xs font-medium text-destructive">{error}</p>}
                 <div className="mt-3 flex gap-2">
                   <button
                     type="submit"

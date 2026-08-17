@@ -25,7 +25,10 @@ export function WalletButton() {
   if (wallet === "rejected" && walletError) {
     return (
       <div className="flex items-center gap-2">
-        <span className="hidden max-w-[200px] truncate text-xs text-rust sm:block" title={walletError}>
+        <span
+          className="hidden max-w-[200px] truncate text-xs text-rust sm:block"
+          title={walletError}
+        >
           {walletError}
         </span>
         <button
