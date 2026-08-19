@@ -86,34 +86,6 @@ function History() {
           Once a circle has closed its first cycle, every payout shows up here in order.
         </p>
 
-        {/* Circle selector when user has multiple circles or wants to test another ID */}
-        <div className="mt-6 flex items-center justify-center gap-2">
-          <label
-            htmlFor="circle-select-empty"
-            className="text-sm font-medium text-muted-foreground"
-          >
-            Select Circle ID:
-          </label>
-          <select
-            id="circle-select-empty"
-            value={effectiveCircleId}
-            onChange={(e) => setSelectedCircleId(e.target.value)}
-            className="input max-w-[140px] text-sm"
-          >
-            {["1", "2", "3", "4", "5"].map((id) => (
-              <option key={id} value={id}>
-                Circle #{id}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {isError && (
-          <p className="mt-4 text-sm text-rust">
-            Could not connect to circle #{effectiveCircleId} on the contract. Check network or try
-            another Circle ID.
-          </p>
-        )}
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link
             to="/create"
@@ -166,42 +138,38 @@ function History() {
           <p className="mt-2 text-sm text-muted-foreground">
             Circle #{effectiveCircleId} · {circle.member_count} members · {cadenceLabel} ·{" "}
             {circle.payout_order_type === "RandomPending"
-              ? "Randomized order (ledger hash)"
+              ? "Randomized using Stellar ledger data"
               : "Manual join order"}
           </p>
         </div>
 
-        {/* Dropdown to switch between circles */}
-        <div className="flex items-center gap-2">
-          <label
-            htmlFor="circle-select-active"
-            className="text-xs font-medium text-muted-foreground"
-          >
-            Circle:
-          </label>
-          <select
-            id="circle-select-active"
-            value={effectiveCircleId}
-            onChange={(e) => {
-              const newId = e.target.value;
-              setSelectedCircleId(newId);
-              setActiveCircleId(newId);
-            }}
-            className="input max-w-[140px] px-3 py-1.5 text-sm"
-          >
-            {userCircles && userCircles.length > 0
-              ? userCircles.map((id) => (
-                  <option key={id} value={String(id)}>
-                    Circle #{id}
-                  </option>
-                ))
-              : ["1", "2", "3", "4", "5"].map((id) => (
-                  <option key={id} value={id}>
-                    Circle #{id}
-                  </option>
-                ))}
-          </select>
-        </div>
+        {/* Dropdown to switch between circles — only shown when the wallet has circles */}
+        {userCircles && userCircles.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="circle-select-active"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              Circle:
+            </label>
+            <select
+              id="circle-select-active"
+              value={effectiveCircleId}
+              onChange={(e) => {
+                const newId = e.target.value;
+                setSelectedCircleId(newId);
+                setActiveCircleId(newId);
+              }}
+              className="input max-w-[140px] px-3 py-1.5 text-sm"
+            >
+              {userCircles.map((id) => (
+                <option key={id} value={String(id)}>
+                  Circle #{id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Unrolled ring timeline */}
