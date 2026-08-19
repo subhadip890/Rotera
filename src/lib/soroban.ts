@@ -270,7 +270,20 @@ export function mapSorobanError(rawError: any): string {
     return "This cycle's contribution deadline has passed.";
   }
 
-  // 5. Network / RPC unreachable errors
+  // 5. Transaction submitted but confirmation timed out — preserve tx hash
+  if (
+    errStr.toLowerCase().includes("confirmation timed out") ||
+    errStr.toLowerCase().includes("confirmation is taking longer")
+  ) {
+    // Extract tx hash if present (format: "Hash: TXHASH")
+    const hashMatch = errStr.match(/Hash:\s*([A-Fa-f0-9]{64})/i);
+    const hashSuffix = hashMatch
+      ? ` Tx hash: ${hashMatch[1].slice(0, 12)}… — check stellar.expert for status.`
+      : " Check stellar.expert for the transaction status.";
+    return `Transaction submitted but confirmation is taking longer than expected.${hashSuffix}`;
+  }
+
+  // 6. Network / RPC unreachable errors
   if (
     errStr.toLowerCase().includes("failed to fetch") ||
     errStr.toLowerCase().includes("networkerror") ||
@@ -280,7 +293,7 @@ export function mapSorobanError(rawError: any): string {
     return "Network error. Unable to reach the Stellar Soroban RPC. Please check your internet connection.";
   }
 
-  // 6. Clean fallback without scary prefixes
+  // 7. Clean fallback without scary prefixes
   return errStr
     .replace(/^Error:\s*/i, "")
     .replace(/^Contract simulation failed:\s*/i, "")

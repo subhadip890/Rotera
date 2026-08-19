@@ -97,6 +97,8 @@ function CircleDashboard() {
   const [payError, setPayError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Separate pending flag for close_cycle so it never blocks repay/pay buttons
+  const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     setNow(Date.now());
@@ -253,7 +255,7 @@ function CircleDashboard() {
   }
 
   async function handleCloseCycle() {
-    if (isSubmitting || closeCycleMutation.isPending) return;
+    if (isClosing || closeCycleMutation.isPending) return;
     if (wallet !== "connected") {
       setPayError("Connect your wallet to trigger cycle close.");
       return;
@@ -263,7 +265,7 @@ function CircleDashboard() {
       return;
     }
     setPayError(null);
-    setIsSubmitting(true);
+    setIsClosing(true);
     try {
       await closeCycleMutation.mutateAsync({
         circleId: effectiveCircleId,
@@ -274,7 +276,7 @@ function CircleDashboard() {
     } catch (err: any) {
       setPayError(mapSorobanError(err));
     } finally {
-      setIsSubmitting(false);
+      setIsClosing(false);
     }
   }
 
@@ -500,10 +502,10 @@ function CircleDashboard() {
                   </p>
                   <button
                     onClick={() => void handleCloseCycle()}
-                    disabled={closeCycleMutation.isPending || isSubmitting}
+                    disabled={closeCycleMutation.isPending || isClosing}
                     className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment disabled:opacity-60"
                   >
-                    {closeCycleMutation.isPending || isSubmitting
+                    {closeCycleMutation.isPending || isClosing
                       ? "Executing close_cycle on Stellar…"
                       : `Close cycle and pay out ${recipient?.name ?? "the recipient"}`}
                   </button>
@@ -521,11 +523,11 @@ function CircleDashboard() {
                   {deadlinePassed && (
                     <button
                       onClick={() => void handleCloseCycle()}
-                      disabled={closeCycleMutation.isPending || isSubmitting}
+                      disabled={closeCycleMutation.isPending || isClosing}
                       className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment disabled:opacity-60"
                     >
-                      {closeCycleMutation.isPending || isSubmitting
-                        ? "Executing Soroban keeper close_cycle…"
+                      {closeCycleMutation.isPending || isClosing
+                        ? "Executing close_cycle on Stellar…"
                         : `Close cycle and pay out ${recipient?.name ?? "the recipient"}`}
                     </button>
                   )}
@@ -568,6 +570,33 @@ function CircleDashboard() {
                 </p>
               )}
             </div>
+
+            {/* ── Debt Repay Panel — shown for Active AND Completed when current user has debt ── */}
+            {/* Contract repay_debt() has NO status requirement — Active members can repay debt */}
+            {you &&
+              you.debt > BigInt(0) &&
+              wallet === "connected" &&
+              circle.status === "Active" && (
+                <div className="rounded-xl border border-rust/30 bg-rust/5 p-5">
+                  <p className="text-sm font-semibold text-rust">
+                    You have {stroopsToXlm(you.debt)} XLM outstanding debt
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    You missed a contribution this cycle. Repay on-chain to clear the debt. Your
+                    deposit is withheld until it is cleared.
+                  </p>
+                  <button
+                    id="repay-debt-active-btn"
+                    onClick={() => void handleRepayDebt(you.debt)}
+                    disabled={repayDebtMutation.isPending || isSubmitting}
+                    className="mt-3 rounded-md bg-rust px-4 py-2 text-sm font-semibold text-chalk transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
+                  >
+                    {repayDebtMutation.isPending || isSubmitting
+                      ? "Approving in wallet…"
+                      : `Repay ${stroopsToXlm(you.debt)} XLM debt`}
+                  </button>
+                </div>
+              )}
 
             {/* Member list */}
             <div className="overflow-hidden rounded-xl border border-border bg-chalk">

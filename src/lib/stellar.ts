@@ -253,8 +253,8 @@ export async function submitAndConfirmTransaction(signedXdr: string): Promise<st
     throw new Error("Transaction rejected by network: " + (sendData.result?.errorResult || txHash));
   }
 
-  // Poll for confirmation
-  const MAX_POLLS = 30;
+  // Poll for confirmation (15 × 2s = 30s max)
+  const MAX_POLLS = 15;
   const POLL_INTERVAL_MS = 2000;
 
   for (let i = 0; i < MAX_POLLS; i++) {
