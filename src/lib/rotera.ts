@@ -126,8 +126,15 @@ export function formatAmount(n: number) {
 }
 
 export function truncate(address: string) {
+  if (!address) return "—";
   if (address.length <= 12) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+export function truncateAddr(address?: string | null): string {
+  if (!address) return "—";
+  if (address.length <= 12) return address;
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
 export function countdown(target: number, from: number) {

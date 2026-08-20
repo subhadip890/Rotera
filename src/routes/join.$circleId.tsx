@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
-import { formatCycleDuration } from "@/lib/rotera";
+import { formatCycleDuration, truncateAddr } from "@/lib/rotera";
 import { useJoinCircleMutation, useCircleState, stroopsToXlm } from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/join/$circleId")({
@@ -291,9 +291,4 @@ function Row({ k, v }: { k: string; v: string }) {
       <dd className="num font-medium">{v}</dd>
     </div>
   );
-}
-
-function truncateAddr(addr: string): string {
-  if (!addr || addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }

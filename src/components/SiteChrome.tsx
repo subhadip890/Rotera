@@ -2,7 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { WalletButton } from "@/components/wallet/WalletButton";
 import { truncate } from "@/lib/rotera";
 
-const CONTRACT_ID = import.meta.env.VITE_SOROBAN_CONTRACT_ID || "CB7QPY4RD2";
+const CONTRACT_ID =
+  import.meta.env.VITE_SOROBAN_CONTRACT_ID ||
+  "CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4";
 
 export function SiteHeader() {
   return (

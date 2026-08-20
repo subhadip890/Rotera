@@ -162,7 +162,15 @@ async function buildContractTx(
   const simResult = await simulateTransaction(builtTx.toXDR(), method);
 
   if (simResult.error) {
-    throw new Error(`Contract simulation failed: ${simResult.error}`);
+    const rawError = String(simResult.error);
+    console.error(`[Soroban simulation error] ${method} raw:`, rawError);
+    captureException(new Error(`Simulation failed for ${method}: ${rawError}`), {
+      context: "buildContractTx",
+      method,
+      rawError,
+    });
+    const userFriendly = mapSorobanError(rawError);
+    throw new Error(userFriendly);
   }
 
   if (!simResult.results?.[0]?.xdr && !simResult.result) {
@@ -175,6 +183,98 @@ async function buildContractTx(
     : builtTx;
 
   return assembledTx.toXDR();
+}
+
+/**
+ * Maps raw Soroban host errors / contract errors into clear, user-friendly messages.
+ * Preserves the full error in console and Sentry while preventing raw HostError dumps in the UI.
+ */
+export function mapSorobanError(rawError: any): string {
+  const errStr =
+    typeof rawError === "string" ? rawError : rawError?.message || JSON.stringify(rawError || "");
+
+  // 1. Contract error codes (RoteraError)
+  const codeMatch =
+    errStr.match(/Error\(Contract,\s*#?(\d+)\)/i) ||
+    errStr.match(/ContractError\((\d+)\)/i) ||
+    errStr.match(/code\s*[:=]\s*#?(\d+)\b/i);
+
+  if (codeMatch && codeMatch[1]) {
+    const code = parseInt(codeMatch[1], 10);
+    switch (code) {
+      case 1:
+        return "Contribution amount must be greater than 0 XLM.";
+      case 2:
+        return "Member count must be between 3 and 12.";
+      case 3:
+        return "Cycle duration must be greater than 0.";
+      case 4:
+        return "Repayment amount must be greater than 0.";
+      case 5:
+        return "Repayment amount exceeds your outstanding debt.";
+      case 6:
+        return "You have no outstanding debt on this circle.";
+      case 10:
+        return "Circle not found on the contract.";
+      case 11:
+        return "This circle is no longer accepting new members.";
+      case 12:
+        return "This circle is not active yet. All seats must be filled before payments start.";
+      case 13:
+        return "This circle has already completed all cycles.";
+      case 14:
+        return "This circle is already full (all seats taken).";
+      case 15:
+        return "Circle is still running. Deposits can only be withdrawn after completion.";
+      case 20:
+      case 23:
+        return "Your connected wallet is not a member of this circle.";
+      case 21:
+        return "You have already joined this circle.";
+      case 22:
+        return "You have already paid your share for this cycle.";
+      case 30:
+        return "Cycle cutoff deadline has not passed yet.";
+      case 31:
+        return "The cycle deadline has passed. Contributions for this cycle are closed.";
+      case 40:
+        return "You have outstanding debt. Repay your debt before withdrawing your deposit.";
+      case 41:
+        return "Your deposit has already been refunded/withdrawn.";
+      default:
+        break;
+    }
+  }
+
+  // 2. Insufficient balance / SAC Token errors
+  if (
+    errStr.toLowerCase().includes("balance") ||
+    errStr.toLowerCase().includes("underfunded") ||
+    errStr.toLowerCase().includes("insufficient")
+  ) {
+    return "Insufficient XLM balance in your wallet to cover this payment and transaction fee.";
+  }
+
+  // 3. User cancellation
+  if (
+    errStr.toLowerCase().includes("cancel") ||
+    errStr.toLowerCase().includes("rejected") ||
+    errStr.toLowerCase().includes("denied")
+  ) {
+    return "Transaction was cancelled in Freighter.";
+  }
+
+  // 4. Deadline / timing keywords
+  if (errStr.toLowerCase().includes("deadline")) {
+    return "Cycle deadline error. The cycle cutoff has passed or is not ready.";
+  }
+
+  // 5. Clean fallback without scary prefixes
+  return errStr
+    .replace(/^Error:\s*/i, "")
+    .replace(/^Contract simulation failed:\s*/i, "")
+    .replace(/^HostError:\s*/i, "")
+    .slice(0, 160);
 }
 
 // ─── Contract function helpers ──────────────────────────────────────────────

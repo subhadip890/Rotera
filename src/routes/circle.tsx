@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { Onboarding } from "@/components/onboarding/Onboarding";
 import { useRotera } from "@/store/useRotera";
-import { countdown, formatAmount, formatCycleDuration } from "@/lib/rotera";
+import { countdown, formatAmount, formatCycleDuration, truncateAddr } from "@/lib/rotera";
 import {
   useCircleState,
   useUserCircles,
@@ -205,7 +205,8 @@ function CircleDashboard() {
 
   const cutoffMs = circle.cycle_deadline * 1000; // convert from seconds
   const contributionXlm = stroopsToXlm(circle.contribution_amount);
-  const potXlm = contributionXlm * circle.member_count;
+  const expectedPotXlm = contributionXlm * circle.member_count;
+  const collectedPotXlm = contributionXlm * paidCount;
 
   const cadenceLabel = formatCycleDuration(circle.cycle_length_days);
 
@@ -265,7 +266,7 @@ function CircleDashboard() {
         circleId: effectiveCircleId,
         cycleNumber: circle!.current_cycle,
         recipientName: recipient?.name ?? "Member",
-        amountXlm: potXlm,
+        amountXlm: collectedPotXlm,
       });
     } catch (err: any) {
       setPayError(err?.message || "Keeper close_cycle transaction failed.");
@@ -344,7 +345,7 @@ function CircleDashboard() {
                   ? `Waiting for ${circle.member_count - circle.payout_order.length} more member${circle.member_count - circle.payout_order.length === 1 ? "" : "s"} to join`
                   : circle.status === "Completed"
                     ? "Circle completed — all payouts done"
-                    : `${isMyTurn ? "It's your turn — you receive" : `${recipient?.name ?? "The recipient"} receives`} ${formatAmount(potXlm)} XLM this cycle`
+                    : `${isMyTurn ? "It's your turn" : `${recipient?.name ?? "The recipient"}`} · ${formatAmount(collectedPotXlm)} of ${formatAmount(expectedPotXlm)} XLM collected (${paidCount}/${circle.member_count} paid)`
               }
             />
           </div>
@@ -371,11 +372,11 @@ function CircleDashboard() {
                 }
               />
               <Stat
-                label={circle.status === "Filling" ? "Seats filled" : "Paid so far"}
+                label={circle.status === "Filling" ? "Seats filled" : "Collected pot"}
                 value={
                   circle.status === "Filling"
                     ? `${circle.payout_order.length} of ${circle.member_count}`
-                    : `${paidCount} of ${members.length}`
+                    : `${formatAmount(collectedPotXlm)} / ${formatAmount(expectedPotXlm)} XLM`
                 }
               />
             </div>
@@ -647,9 +648,4 @@ function StatusPill({ status }: { status: "paid" | "waiting" | "late" }) {
   return (
     <span className={`ml-auto rounded-full px-2.5 py-1 text-xs font-medium ${cls}`}>{text}</span>
   );
-}
-
-function truncateAddr(addr: string): string {
-  if (!addr || addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }

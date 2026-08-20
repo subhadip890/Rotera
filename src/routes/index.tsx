@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { Roundtable, type Seat } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
+import { truncateAddr } from "@/lib/rotera";
 import { useCircleState, useUserCircles, stroopsToXlm } from "@/hooks/useSorobanQueries";
 import { useIllustrativeRotation } from "@/hooks/useIllustrativeRotation";
 
@@ -93,7 +94,7 @@ function Landing() {
 
         return {
           id: addr || `seat-${i}`,
-          name: isMe ? "You" : addr ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : `Seat ${i + 1}`,
+          name: isMe ? "You" : addr ? truncateAddr(addr) : `Seat ${i + 1}`,
           status: paid
             ? ("paid" as const)
             : isLate || isDefaulted

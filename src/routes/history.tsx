@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { formatAmount, formatCycleDuration } from "@/lib/rotera";
+import { formatAmount, formatCycleDuration, truncateAddr } from "@/lib/rotera";
 import {
   useCircleState,
   useUserCircles,
@@ -32,10 +32,10 @@ function History() {
   const { activeCircleId: storedCircleId, address, setActiveCircleId } = useRotera();
   const { data: userCircles } = useUserCircles(address);
 
-  // Auto-resolve effective circle ID: stored active ID -> latest user circle -> fallback "3" -> "1"
+  // Auto-resolve effective circle ID: stored active ID -> latest user circle -> null
   const defaultCircleId =
     storedCircleId ||
-    (userCircles && userCircles.length > 0 ? String(userCircles[userCircles.length - 1]) : "3");
+    (userCircles && userCircles.length > 0 ? String(userCircles[userCircles.length - 1]) : "");
 
   const [selectedCircleId, setSelectedCircleId] = useState<string>(defaultCircleId);
 
@@ -48,13 +48,13 @@ function History() {
     }
   }, [storedCircleId, userCircles]);
 
-  const effectiveCircleId = selectedCircleId || "3";
+  const effectiveCircleId = selectedCircleId || defaultCircleId || "";
 
-  // Load state from Stellar Testnet contract
-  const { data: circle, isLoading, isError } = useCircleState(effectiveCircleId);
+  // Load state from Stellar Testnet contract (only when effectiveCircleId is set)
+  const { data: circle, isLoading, isError } = useCircleState(effectiveCircleId || null);
 
   // Load event audit log from Supabase
-  const { data: supabaseEvents } = useSupabaseCircleEvents(effectiveCircleId);
+  const { data: supabaseEvents } = useSupabaseCircleEvents(effectiveCircleId || null);
 
   // Auto-update activeCircleId in store when valid circle is loaded
   useEffect(() => {
@@ -397,9 +397,4 @@ function History() {
       </div>
     </div>
   );
-}
-
-function truncateAddr(addr: string): string {
-  if (!addr || addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
