@@ -120,7 +120,14 @@ export const useRotera = create<RoteraStore>((set) => ({
         // ignore
       }
     }
-    set({ wallet: "disconnected", address: null, walletError: null });
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem(SESSION_CIRCLE_KEY);
+      } catch {
+        // ignore
+      }
+    }
+    set({ wallet: "disconnected", address: null, activeCircleId: null, walletError: null });
     trackEvent("wallet_disconnected");
   },
 

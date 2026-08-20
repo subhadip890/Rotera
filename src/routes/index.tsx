@@ -49,14 +49,17 @@ function Landing() {
   }, []);
 
   // Auto-resolve target circle ID:
-  //   1. Zustand-stored activeCircleId (persisted after create/join/navigate)
-  //   2. Latest circle from on-chain member list (async query result)
-  //   3. null — show illustrative demo animation
-  const targetId: string | null =
-    activeCircleId ||
-    (userCircles && userCircles.length > 0
-      ? String(userCircles[userCircles.length - 1])
-      : null);
+  //   1. If wallet is connected:
+  //      a. Zustand-stored activeCircleId (persisted after create/join/navigate)
+  //      b. Latest circle from on-chain member list (async query result)
+  //   2. If no wallet connected (or connected wallet has zero circles):
+  //      null — show illustrative demo animation
+  const targetId: string | null = address
+    ? activeCircleId ||
+      (userCircles && userCircles.length > 0
+        ? String(userCircles[userCircles.length - 1])
+        : null)
+    : null;
 
   const { data: circle, isLoading: isCircleLoading, isError } = useCircleState(targetId);
   const { data: memberNames } = useCircleMemberNames(targetId);

@@ -54,6 +54,7 @@ export interface OnChainCycle {
   amount_paid_out: bigint;
   closed: boolean;
   closed_at: number;
+  debt_charged?: boolean;
   contributions: Map<string, boolean>;
 }
 
@@ -358,6 +359,7 @@ function decodeCircleState(sdk: any, scVal: any): OnChainCircle | null {
       amount_paid_out: BigInt(c.amount_paid_out ?? 0),
       closed: c.closed ?? false,
       closed_at: Number(c.closed_at ?? 0),
+      debt_charged: c.debt_charged ?? false,
       contributions: new Map(Object.entries(c.contributions || {})),
     }));
 

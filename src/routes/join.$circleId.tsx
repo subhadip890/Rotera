@@ -89,15 +89,30 @@ function JoinCircle() {
     }
   }
 
-  // Build seats for Roundtable from chain data & display names
+  // Build seats for Roundtable from chain data & display names based on circle.member_count
   const seats = circle
-    ? circle.payout_order.map((addr) => ({
-        id: addr,
-        name: namesByAddress.get(addr) || truncateAddr(addr),
-        status: "waiting" as const,
-      }))
+    ? Array.from({ length: circle.member_count }, (_, i) => {
+        if (i < circle.payout_order.length) {
+          const addr = circle.payout_order[i] || "";
+          const isMe = Boolean(address && addr === address);
+          const name = isMe
+            ? "You"
+            : (namesByAddress.get(addr) || truncateAddr(addr));
+          return {
+            id: addr,
+            name,
+            status: "waiting" as const,
+          };
+        } else {
+          return {
+            id: `seat-${i}`,
+            name: `Seat ${i + 1}`,
+            status: "waiting" as const,
+          };
+        }
+      })
     : Array.from({ length: 6 }, (_, i) => ({
-        id: String(i),
+        id: `seat-${i}`,
         name: `Seat ${i + 1}`,
         status: "waiting" as const,
       }));
@@ -322,7 +337,7 @@ function JoinCircle() {
 
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <Roundtable
-          seats={seats.length > 0 ? seats : Array.from({ length: totalSeats }, (_, i) => ({ id: String(i), name: `Seat ${i + 1}`, status: "waiting" as const }))}
+          seats={seats}
           currentSeat={currentSeat}
           size={380}
           caption={

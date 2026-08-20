@@ -9,6 +9,8 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN: string;
   readonly VITE_SUPABASE_URL: string;
   readonly VITE_SUPABASE_ANON_KEY: string;
+  readonly VITE_ENABLE_TEST_CYCLES?: string;
+  readonly VITE_SOROBAN_SIM_ACCOUNT?: string;
 }
 
 interface ImportMeta {
