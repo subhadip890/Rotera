@@ -219,24 +219,24 @@ export function mapSorobanError(rawError: any): string {
       case 11:
         return "This circle is no longer accepting new members.";
       case 12:
-        return "This circle is not active yet. All seats must be filled before payments start.";
+        return "This circle isn't active yet.";
       case 13:
         return "This circle has already completed all cycles.";
       case 14:
-        return "This circle is already full (all seats taken).";
+        return "This circle is full — all seats are taken.";
       case 15:
         return "Circle is still running. Deposits can only be withdrawn after completion.";
       case 20:
       case 23:
-        return "Your connected wallet is not a member of this circle.";
+        return "Your wallet is not a member of this circle.";
       case 21:
         return "You have already joined this circle.";
       case 22:
-        return "You have already paid your share for this cycle.";
+        return "You've already paid for this cycle.";
       case 30:
         return "Cycle cutoff deadline has not passed yet.";
       case 31:
-        return "The cycle deadline has passed. Contributions for this cycle are closed.";
+        return "This cycle's contribution deadline has passed.";
       case 40:
         return "You have outstanding debt. Repay your debt before withdrawing your deposit.";
       case 41:
@@ -246,7 +246,17 @@ export function mapSorobanError(rawError: any): string {
     }
   }
 
-  // 2. Insufficient balance / SAC Token errors
+  // 2. User cancellation / rejection in Freighter
+  if (
+    errStr.toLowerCase().includes("cancel") ||
+    errStr.toLowerCase().includes("rejected") ||
+    errStr.toLowerCase().includes("declined") ||
+    errStr.toLowerCase().includes("denied")
+  ) {
+    return "Transaction cancelled.";
+  }
+
+  // 3. Insufficient balance / SAC Token errors
   if (
     errStr.toLowerCase().includes("balance") ||
     errStr.toLowerCase().includes("underfunded") ||
@@ -255,21 +265,22 @@ export function mapSorobanError(rawError: any): string {
     return "Insufficient XLM balance in your wallet to cover this payment and transaction fee.";
   }
 
-  // 3. User cancellation
-  if (
-    errStr.toLowerCase().includes("cancel") ||
-    errStr.toLowerCase().includes("rejected") ||
-    errStr.toLowerCase().includes("denied")
-  ) {
-    return "Transaction was cancelled in Freighter.";
-  }
-
   // 4. Deadline / timing keywords
   if (errStr.toLowerCase().includes("deadline")) {
-    return "Cycle deadline error. The cycle cutoff has passed or is not ready.";
+    return "This cycle's contribution deadline has passed.";
   }
 
-  // 5. Clean fallback without scary prefixes
+  // 5. Network / RPC unreachable errors
+  if (
+    errStr.toLowerCase().includes("failed to fetch") ||
+    errStr.toLowerCase().includes("networkerror") ||
+    errStr.toLowerCase().includes("timeout") ||
+    errStr.toLowerCase().includes("econnrefused")
+  ) {
+    return "Network error. Unable to reach the Stellar Soroban RPC. Please check your internet connection.";
+  }
+
+  // 6. Clean fallback without scary prefixes
   return errStr
     .replace(/^Error:\s*/i, "")
     .replace(/^Contract simulation failed:\s*/i, "")
@@ -321,6 +332,22 @@ function scEnum(sdk: any, variant: string, field?: any): any {
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 /**
+ * Validates the runtime Soroban environment configuration.
+ */
+export function validateSorobanEnv(): { valid: boolean; error?: string } {
+  if (!CONTRACT_ID) {
+    return { valid: false, error: "VITE_SOROBAN_CONTRACT_ID is not configured." };
+  }
+  if (CONTRACT_ID.length !== 56 || !CONTRACT_ID.startsWith("C")) {
+    return {
+      valid: false,
+      error: `Invalid Contract ID: ${CONTRACT_ID} (must be a 56-character C... address)`,
+    };
+  }
+  return { valid: true };
+}
+
+/**
  * Query on-chain circle state.
  * Returns null if circle not found or contract not configured.
  */
@@ -336,9 +363,14 @@ export async function getCircleStateOnChain(
     return null;
   }
 
+  // Safe parsing for malformed / non-numeric circle IDs
+  if (circleId === null || circleId === undefined || circleId === "") return null;
+  const strId = String(circleId).trim();
+  if (!/^\d+$/.test(strId)) return null;
+
   try {
     const sdk = await getSdk();
-    const numId = BigInt(circleId);
+    const numId = BigInt(strId);
 
     // Call get_status(circle_id: u64) as a read-only simulation.
     // SIM_ACCOUNT is a well-known, funded Stellar Foundation account used ONLY

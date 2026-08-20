@@ -189,19 +189,17 @@ export async function signStellarTx(xdr: string, networkPassphrase?: string): Pr
     if (
       msg.includes("cancel") ||
       msg.includes("reject") ||
+      msg.includes("declined") ||
       msg.includes("denied") ||
       msg.includes("user")
     ) {
-      throw new WalletConnectionError(
-        "CANCELLED",
-        "Transaction signing was cancelled by the user.",
-      );
+      throw new WalletConnectionError("CANCELLED", "Transaction cancelled.");
     }
     throw new WalletConnectionError("UNKNOWN", err?.message || "Transaction signing failed.");
   }
 
   if (!result) {
-    throw new WalletConnectionError("CANCELLED", "Transaction signing was cancelled.");
+    throw new WalletConnectionError("CANCELLED", "Transaction cancelled.");
   }
 
   // Freighter v6 returns { signedTxXdr: string } or just the XDR string
@@ -217,16 +215,23 @@ export async function submitAndConfirmTransaction(signedXdr: string): Promise<st
   const rpcUrl = import.meta.env.VITE_SOROBAN_RPC_URL || "https://soroban-testnet.stellar.org";
 
   // Send transaction
-  const sendRes = await fetch(rpcUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "sendTransaction",
-      params: { transaction: signedXdr },
-    }),
-  });
+  let sendRes: Response;
+  try {
+    sendRes = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "sendTransaction",
+        params: { transaction: signedXdr },
+      }),
+    });
+  } catch {
+    throw new Error(
+      "Network error. Unable to reach the Stellar Soroban RPC. Please check your internet connection.",
+    );
+  }
 
   if (!sendRes.ok) {
     throw new Error(`RPC sendTransaction HTTP error: ${sendRes.status}`);
@@ -255,16 +260,22 @@ export async function submitAndConfirmTransaction(signedXdr: string): Promise<st
   for (let i = 0; i < MAX_POLLS; i++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-    const getRes = await fetch(rpcUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 2,
-        method: "getTransaction",
-        params: { hash: txHash },
-      }),
-    });
+    let getRes: Response;
+    try {
+      getRes = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "getTransaction",
+          params: { hash: txHash },
+        }),
+      });
+    } catch {
+      // transient network glitch during polling — continue polling
+      continue;
+    }
 
     const getData = await getRes.json();
     const txStatus = getData?.result?.status;
@@ -280,6 +291,6 @@ export async function submitAndConfirmTransaction(signedXdr: string): Promise<st
   }
 
   throw new Error(
-    `Transaction confirmation timeout after ${(MAX_POLLS * POLL_INTERVAL_MS) / 1000}s. Hash: ${txHash}`,
+    `Transaction confirmation timed out. It may still succeed on-chain — check your wallet or stellar.expert. Hash: ${txHash}`,
   );
 }

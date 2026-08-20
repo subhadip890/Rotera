@@ -4,6 +4,8 @@ import { Roundtable } from "@/components/roundtable/Roundtable";
 import { randomizeOrder } from "@/lib/rotera";
 import { useCreateCircleMutation } from "@/hooks/useSorobanQueries";
 import { useRotera } from "@/store/useRotera";
+import { mapSorobanError } from "@/lib/soroban";
+import { trackEvent } from "@/lib/posthog";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
@@ -44,6 +46,7 @@ function CreateCircle() {
   const [realCircleId, setRealCircleId] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const createCircleMutation = useCreateCircleMutation();
 
@@ -53,10 +56,12 @@ function CreateCircle() {
     status: "waiting" as const,
   }));
 
-  const potPerCycle = (Number(amount) || 0) * memberCount;
+  const parsedAmount = parseFloat(amount.trim());
+  const potPerCycle = (isNaN(parsedAmount) || parsedAmount < 0 ? 0 : parsedAmount) * memberCount;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (isSubmitting || createCircleMutation.isPending) return;
     setError(null);
 
     if (!connected) {
@@ -64,8 +69,9 @@ function CreateCircle() {
       return;
     }
 
-    if (!Number(amount) || Number(amount) <= 0) {
-      setError("Set a contribution above 0 XLM — that's the amount each seat pays.");
+    const cleanAmount = parseFloat(amount.trim());
+    if (isNaN(cleanAmount) || !isFinite(cleanAmount) || cleanAmount <= 0) {
+      setError("Contribution amount must be greater than 0 XLM.");
       return;
     }
 
@@ -74,10 +80,20 @@ function CreateCircle() {
       return;
     }
 
+    const circleName = name.trim() || "My Circle";
+
+    trackEvent("circle_create_started", {
+      member_count: memberCount,
+      cadence,
+      amount: cleanAmount,
+      order_type: orderType,
+    });
+
+    setIsSubmitting(true);
     try {
       const res = await createCircleMutation.mutateAsync({
-        name,
-        amount: Number(amount),
+        name: circleName,
+        amount: cleanAmount,
         cadence,
         memberCount,
         payoutOrderType: orderType,
@@ -91,7 +107,9 @@ function CreateCircle() {
       const origin = typeof window !== "undefined" ? window.location.origin : "https://rotera.app";
       setInvite(`${origin}/join/${res.circleId}`);
     } catch (err: any) {
-      setError(err?.message || "Could not submit contract transaction.");
+      setError(mapSorobanError(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -243,10 +261,10 @@ function CreateCircle() {
 
           <button
             type="submit"
-            disabled={createCircleMutation.isPending || !connected}
+            disabled={createCircleMutation.isPending || isSubmitting || !connected}
             className="rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
           >
-            {createCircleMutation.isPending
+            {createCircleMutation.isPending || isSubmitting
               ? "Signing & creating circle on Stellar…"
               : "Create circle and get the invite link"}
           </button>
@@ -280,6 +298,10 @@ function CreateCircle() {
               onClick={() => {
                 if (typeof navigator !== "undefined") {
                   navigator.clipboard.writeText(invite).catch(() => {});
+                  trackEvent("invite_copied", {
+                    circle_id: realCircleId,
+                    source: "create_success",
+                  });
                 }
               }}
               className="mt-3 rounded-md border border-border px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-parchment"

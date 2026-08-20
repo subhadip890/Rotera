@@ -15,6 +15,26 @@ export function initSentry() {
 }
 
 export function captureException(error: unknown, context?: Record<string, unknown>) {
+  const errStr =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error || "");
+
+  // Filter out benign user cancellations and uninstalled extension alerts
+  if (
+    errStr.toLowerCase().includes("transaction cancelled") ||
+    errStr.toLowerCase().includes("user rejected") ||
+    errStr.toLowerCase().includes("not_installed") ||
+    errStr.toLowerCase().includes("cancelled by the user")
+  ) {
+    if (import.meta.env.DEV) {
+      console.log("[Sentry Filtered - Benign User Action]:", errStr);
+    }
+    return;
+  }
+
   if (SENTRY_DSN) {
     Sentry.withScope((scope) => {
       if (context) {

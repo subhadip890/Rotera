@@ -114,6 +114,8 @@ export function useCreateCircleMutation() {
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["circle", data.circleId] });
+      queryClient.invalidateQueries({ queryKey: ["userCircles"] });
+      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", data.circleId] });
     },
     onError: (err) => {
       captureException(err, { context: "useCreateCircleMutation" });
@@ -131,9 +133,10 @@ export function useJoinCircleMutation() {
   return useMutation({
     mutationFn: ({ circleId }: { circleId: string | number }) => submitJoinCircle(circleId),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["circle", String(variables.circleId)],
-      });
+      const cid = String(variables.circleId);
+      queryClient.invalidateQueries({ queryKey: ["circle", cid] });
+      queryClient.invalidateQueries({ queryKey: ["userCircles"] });
+      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
     },
     onError: (err) => {
       captureException(err, { context: "useJoinCircleMutation" });
@@ -152,10 +155,9 @@ export function useContributeMutation() {
     mutationFn: ({ circleId, cycleNumber }: { circleId: string | number; cycleNumber: number }) =>
       submitContribute(circleId, cycleNumber),
     onSuccess: (_, variables) => {
-      // Force fresh chain data after contribution
-      queryClient.invalidateQueries({
-        queryKey: ["circle", String(variables.circleId)],
-      });
+      const cid = String(variables.circleId);
+      queryClient.invalidateQueries({ queryKey: ["circle", cid] });
+      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
     },
     onError: (err) => {
       captureException(err, { context: "useContributeMutation" });
@@ -182,6 +184,7 @@ export function useCloseCycleMutation() {
       amountXlm?: number;
     }) => submitCloseCycle(circleId, cycleNumber),
     onSuccess: (_, variables) => {
+      const cid = String(variables.circleId);
       // Show the payout toast using UI-only state
       if (variables.recipientName && variables.amountXlm !== undefined) {
         setLastPayout({
@@ -190,10 +193,10 @@ export function useCloseCycleMutation() {
           cycle: variables.cycleNumber,
         });
       }
-      // Refresh chain state
-      queryClient.invalidateQueries({
-        queryKey: ["circle", String(variables.circleId)],
-      });
+      // Refresh chain state & events
+      queryClient.invalidateQueries({ queryKey: ["circle", cid] });
+      queryClient.invalidateQueries({ queryKey: ["userCircles"] });
+      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
     },
     onError: (err) => {
       captureException(err, { context: "useCloseCycleMutation" });
@@ -210,9 +213,9 @@ export function useWithdrawDepositMutation() {
   return useMutation({
     mutationFn: ({ circleId }: { circleId: string | number }) => submitWithdrawDeposit(circleId),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["circle", String(variables.circleId)],
-      });
+      const cid = String(variables.circleId);
+      queryClient.invalidateQueries({ queryKey: ["circle", cid] });
+      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
     },
     onError: (err) => {
       captureException(err, { context: "useWithdrawDepositMutation" });
@@ -236,9 +239,9 @@ export function useRepayDebtMutation() {
       amountStroops: bigint;
     }) => submitRepayDebt(circleId, amountStroops),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ["circle", String(variables.circleId)],
-      });
+      const cid = String(variables.circleId);
+      queryClient.invalidateQueries({ queryKey: ["circle", cid] });
+      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
     },
     onError: (err) => {
       captureException(err, { context: "useRepayDebtMutation" });

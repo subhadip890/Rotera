@@ -14,6 +14,8 @@ import {
   useRepayDebtMutation,
   stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
+import { mapSorobanError } from "@/lib/soroban";
+import { trackEvent } from "@/lib/posthog";
 
 export const Route = createFileRoute("/circle")({
   validateSearch: (search: Record<string, unknown>): { circleId?: string | undefined } => ({
@@ -55,13 +57,17 @@ function CircleDashboard() {
   const { data: userCircles } = useUserCircles(address);
 
   // Auto-resolve circle: query param -> Zustand activeCircleId -> latest user circle -> null
-  const effectiveCircleId: string | null =
+  const rawCircleId: string | null =
     circleId ||
     (activeCircleId
       ? activeCircleId
       : userCircles && userCircles.length > 0
         ? String(userCircles[userCircles.length - 1])
         : null);
+
+  // Ensure effectiveCircleId is numeric or null
+  const effectiveCircleId: string | null =
+    rawCircleId && /^\d+$/.test(rawCircleId.trim()) ? rawCircleId.trim() : null;
 
   const [selectedCircleId, setSelectedCircleId] = useState<string | null>(effectiveCircleId);
 
@@ -90,6 +96,7 @@ function CircleDashboard() {
   const [now, setNow] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     setNow(Date.now());
@@ -211,6 +218,7 @@ function CircleDashboard() {
   const cadenceLabel = formatCycleDuration(circle.cycle_length_days);
 
   async function handlePay() {
+    if (isSubmitting || contributeMutation.isPending) return;
     if (wallet !== "connected") {
       setPayError(
         "Your wallet isn't connected. Connect it from the top right, then pay your share.",
@@ -222,31 +230,30 @@ function CircleDashboard() {
       return;
     }
     if (circle?.status !== "Active") {
-      setPayError("This circle is not active yet. All seats must be filled before payments start.");
+      setPayError("This circle isn't active yet.");
       return;
     }
     setPayError(null);
-    if (import.meta.env.DEV) {
-      console.log(
-        `[Rotera] handlePay → contribute(circle=${effectiveCircleId}, cycle=${circle!.current_cycle})`,
-      );
-    }
+    trackEvent("contribution_started", {
+      circle_id: effectiveCircleId,
+      cycle: circle!.current_cycle,
+      amount_xlm: contributionXlm,
+    });
+    setIsSubmitting(true);
     try {
       await contributeMutation.mutateAsync({
         circleId: effectiveCircleId,
         cycleNumber: circle!.current_cycle,
       });
     } catch (err: any) {
-      // Surface the real contract error to help diagnose issues
-      const msg = err?.message || "Contribution transaction failed.";
-      setPayError(msg);
-      if (import.meta.env.DEV) {
-        console.error(`[Rotera] contribute failed (circle=${effectiveCircleId}):`, err);
-      }
+      setPayError(mapSorobanError(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   async function handleCloseCycle() {
+    if (isSubmitting || closeCycleMutation.isPending) return;
     if (wallet !== "connected") {
       setPayError("Connect your wallet to trigger cycle close.");
       return;
@@ -256,11 +263,7 @@ function CircleDashboard() {
       return;
     }
     setPayError(null);
-    if (import.meta.env.DEV) {
-      console.log(
-        `[Rotera] handleCloseCycle → close_cycle(circle=${effectiveCircleId}, cycle=${circle!.current_cycle})`,
-      );
-    }
+    setIsSubmitting(true);
     try {
       await closeCycleMutation.mutateAsync({
         circleId: effectiveCircleId,
@@ -269,40 +272,46 @@ function CircleDashboard() {
         amountXlm: collectedPotXlm,
       });
     } catch (err: any) {
-      setPayError(err?.message || "Keeper close_cycle transaction failed.");
+      setPayError(mapSorobanError(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   async function handleWithdrawDeposit() {
+    if (isSubmitting || withdrawMutation.isPending) return;
     if (wallet !== "connected") return;
     if (!effectiveCircleId) return;
     setPayError(null);
-    if (import.meta.env.DEV) {
-      console.log(`[Rotera] handleWithdrawDeposit → withdraw_deposit(circle=${effectiveCircleId})`);
-    }
+    setIsSubmitting(true);
     try {
       await withdrawMutation.mutateAsync({ circleId: effectiveCircleId });
     } catch (err: any) {
-      setPayError(err?.message || "Deposit withdrawal failed.");
+      setPayError(mapSorobanError(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
   async function handleRepayDebt(amountStroops: bigint) {
+    if (isSubmitting || repayDebtMutation.isPending) return;
     if (wallet !== "connected") return;
     if (!effectiveCircleId) return;
-    setPayError(null);
-    if (import.meta.env.DEV) {
-      console.log(
-        `[Rotera] handleRepayDebt → repay_debt(circle=${effectiveCircleId}, amount=${amountStroops})`,
-      );
+    if (amountStroops <= 0n) {
+      setPayError("Repayment amount must be greater than 0.");
+      return;
     }
+    setPayError(null);
+    setIsSubmitting(true);
     try {
       await repayDebtMutation.mutateAsync({
         circleId: effectiveCircleId,
         amountStroops,
       });
     } catch (err: any) {
-      setPayError(err?.message || "Debt repayment transaction failed.");
+      setPayError(mapSorobanError(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -417,6 +426,10 @@ function CircleDashboard() {
                             const url = `${window.location.origin}/join/${effectiveCircleId}`;
                             navigator.clipboard.writeText(url).catch(() => {});
                             setCopied(true);
+                            trackEvent("invite_copied", {
+                              circle_id: effectiveCircleId,
+                              source: "dashboard_filling",
+                            });
                             setTimeout(() => setCopied(false), 2000);
                           }
                         }}
@@ -441,10 +454,12 @@ function CircleDashboard() {
                         </p>
                         <button
                           onClick={() => void handleWithdrawDeposit()}
-                          disabled={withdrawMutation.isPending}
+                          disabled={withdrawMutation.isPending || isSubmitting}
                           className="mt-4 rounded-md bg-brass px-5 py-3 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
                         >
-                          {withdrawMutation.isPending ? "Processing…" : "Withdraw deposit"}
+                          {withdrawMutation.isPending || isSubmitting
+                            ? "Processing…"
+                            : "Withdraw deposit"}
                         </button>
                       </>
                     )}
@@ -459,10 +474,12 @@ function CircleDashboard() {
                       </p>
                       <button
                         onClick={() => void handleRepayDebt(you.debt)}
-                        disabled={repayDebtMutation.isPending || wallet !== "connected"}
+                        disabled={
+                          repayDebtMutation.isPending || isSubmitting || wallet !== "connected"
+                        }
                         className="mt-3 rounded-md bg-rust px-4 py-2 text-sm font-semibold text-chalk transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
                       >
-                        {repayDebtMutation.isPending
+                        {repayDebtMutation.isPending || isSubmitting
                           ? "Approving in wallet…"
                           : `Repay ${stroopsToXlm(you.debt)} XLM debt`}
                       </button>
@@ -483,10 +500,10 @@ function CircleDashboard() {
                   </p>
                   <button
                     onClick={() => void handleCloseCycle()}
-                    disabled={closeCycleMutation.isPending}
+                    disabled={closeCycleMutation.isPending || isSubmitting}
                     className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment disabled:opacity-60"
                   >
-                    {closeCycleMutation.isPending
+                    {closeCycleMutation.isPending || isSubmitting
                       ? "Executing close_cycle on Stellar…"
                       : `Close cycle and pay out ${recipient?.name ?? "the recipient"}`}
                   </button>
@@ -504,10 +521,10 @@ function CircleDashboard() {
                   {deadlinePassed && (
                     <button
                       onClick={() => void handleCloseCycle()}
-                      disabled={closeCycleMutation.isPending}
+                      disabled={closeCycleMutation.isPending || isSubmitting}
                       className="mt-4 rounded-md border border-border px-4 py-2.5 text-sm font-medium transition-colors duration-200 hover:bg-parchment disabled:opacity-60"
                     >
-                      {closeCycleMutation.isPending
+                      {closeCycleMutation.isPending || isSubmitting
                         ? "Executing Soroban keeper close_cycle…"
                         : `Close cycle and pay out ${recipient?.name ?? "the recipient"}`}
                     </button>
@@ -525,10 +542,14 @@ function CircleDashboard() {
                   </p>
                   <button
                     onClick={() => void handlePay()}
-                    disabled={contributeMutation.isPending || wallet !== "connected"}
+                    disabled={
+                      contributeMutation.isPending || isSubmitting || wallet !== "connected"
+                    }
                     className="mt-4 w-full rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60 sm:w-auto"
                   >
-                    {contributeMutation.isPending ? "Approve it in your wallet…" : "Pay my share"}
+                    {contributeMutation.isPending || isSubmitting
+                      ? "Approve it in your wallet…"
+                      : "Pay my share"}
                   </button>
                   {wallet !== "connected" && (
                     <p className="mt-2 text-sm text-muted-foreground">

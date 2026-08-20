@@ -29,7 +29,7 @@ export function FeedbackWidget() {
       });
 
       if (!ok) {
-        throw new Error("Failed to store feedback in database.");
+        throw new Error("Could not submit feedback at this time. Please check network connection.");
       }
 
       trackEvent("feedback_submitted", {
@@ -40,7 +40,7 @@ export function FeedbackWidget() {
 
       setSent(true);
     } catch (err: any) {
-      console.error("[Feedback Submit Error]:", err);
+      console.warn("[Feedback Submit Notice]:", err?.message || err);
       setError(err?.message || "Could not submit feedback. Please try again.");
     } finally {
       setSubmitting(false);

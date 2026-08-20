@@ -4,6 +4,8 @@ import { Roundtable } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
 import { formatCycleDuration, truncateAddr } from "@/lib/rotera";
 import { useJoinCircleMutation, useCircleState, stroopsToXlm } from "@/hooks/useSorobanQueries";
+import { mapSorobanError } from "@/lib/soroban";
+import { trackEvent } from "@/lib/posthog";
 
 export const Route = createFileRoute("/join/$circleId")({
   head: () => ({
@@ -32,26 +34,42 @@ function JoinCircle() {
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [joined, setJoined] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const connected = wallet === "connected";
+  const isInvalidCircleId = !/^\d+$/.test(circleId?.trim() || "");
 
   // Load real circle data from chain
-  const { data: circle, isLoading, isError } = useCircleState(circleId);
+  const { data: circle, isLoading, isError } = useCircleState(isInvalidCircleId ? null : circleId);
 
   async function handleTakeSeat() {
+    if (isSubmitting || joinMutation.isPending) return;
     setError(null);
+
     if (!connected) {
       setError("Connect your wallet first.");
       return;
     }
 
+    if (isInvalidCircleId) {
+      setError("Invalid circle ID in invite link.");
+      return;
+    }
+
+    trackEvent("circle_join_started", {
+      circle_id: circleId,
+    });
+
+    setIsSubmitting(true);
     try {
       const res = await joinMutation.mutateAsync({ circleId });
       setTxHash(res.txHash);
       setJoined(true);
       setActiveCircleId(circleId); // persist for dashboard use
     } catch (err: any) {
-      setError(err?.message || "Join transaction failed. Check your wallet and try again.");
+      setError(mapSorobanError(err));
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -231,10 +249,12 @@ function JoinCircle() {
 
                 <button
                   onClick={() => void handleTakeSeat()}
-                  disabled={joinMutation.isPending}
+                  disabled={joinMutation.isPending || isSubmitting}
                   className="mt-5 rounded-md bg-brass px-6 py-3.5 font-semibold text-ink transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
                 >
-                  {joinMutation.isPending ? "Signing join transaction…" : "Take a seat"}
+                  {joinMutation.isPending || isSubmitting
+                    ? "Signing join transaction…"
+                    : "Take a seat"}
                 </button>
               </>
             ) : (

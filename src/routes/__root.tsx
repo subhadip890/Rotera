@@ -14,6 +14,7 @@ import { captureException, initSentry } from "../lib/sentry";
 import { initPostHog } from "../lib/posthog";
 import { SiteHeader, SiteFooter } from "@/components/SiteChrome";
 import { FeedbackWidget } from "@/components/feedback/FeedbackWidget";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function NotFoundComponent() {
   return (
@@ -150,7 +151,9 @@ function RootComponent() {
         <SiteHeader />
         <main className="flex-1">
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
         <SiteFooter />
       </div>

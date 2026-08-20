@@ -49,12 +49,19 @@ function History() {
   }, [storedCircleId, userCircles]);
 
   const effectiveCircleId = selectedCircleId || defaultCircleId || "";
+  const isNumericId = /^\d+$/.test(effectiveCircleId.trim());
 
-  // Load state from Stellar Testnet contract (only when effectiveCircleId is set)
-  const { data: circle, isLoading, isError } = useCircleState(effectiveCircleId || null);
+  // Load state from Stellar Testnet contract (only when effectiveCircleId is numeric)
+  const {
+    data: circle,
+    isLoading,
+    isError,
+  } = useCircleState(isNumericId ? effectiveCircleId.trim() : null);
 
   // Load event audit log from Supabase
-  const { data: supabaseEvents } = useSupabaseCircleEvents(effectiveCircleId || null);
+  const { data: supabaseEvents } = useSupabaseCircleEvents(
+    isNumericId ? effectiveCircleId.trim() : null,
+  );
 
   // Auto-update activeCircleId in store when valid circle is loaded
   useEffect(() => {
