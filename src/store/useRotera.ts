@@ -26,9 +26,20 @@ type RoteraStore = {
 
 const STORAGE_WALLET_KEY = "rotera_connected_address";
 
+const getStoredAddress = (): string | null => {
+  if (typeof window === "undefined" || typeof localStorage === "undefined") return null;
+  try {
+    return localStorage.getItem(STORAGE_WALLET_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const initialAddress = getStoredAddress();
+
 export const useRotera = create<RoteraStore>((set, get) => ({
-  wallet: localStorage.getItem(STORAGE_WALLET_KEY) ? "connected" : "disconnected",
-  address: localStorage.getItem(STORAGE_WALLET_KEY) || null,
+  wallet: initialAddress ? "connected" : "disconnected",
+  address: initialAddress,
   balance: 1840.5,
   walletError: null,
   circle: null,
@@ -40,7 +51,9 @@ export const useRotera = create<RoteraStore>((set, get) => ({
     set({ wallet: "connecting", walletError: null });
     try {
       const realAddress = await connectFreighter();
-      localStorage.setItem(STORAGE_WALLET_KEY, realAddress);
+      if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
+        try { localStorage.setItem(STORAGE_WALLET_KEY, realAddress); } catch {}
+      }
       set({
         wallet: "connected",
         address: realAddress,
@@ -69,7 +82,9 @@ export const useRotera = create<RoteraStore>((set, get) => ({
   },
 
   disconnect: () => {
-    localStorage.removeItem(STORAGE_WALLET_KEY);
+    if (typeof window !== "undefined" && typeof localStorage !== "undefined") {
+      try { localStorage.removeItem(STORAGE_WALLET_KEY); } catch {}
+    }
     set({ wallet: "disconnected", address: null, walletError: null });
     trackEvent("wallet_disconnected");
   },
