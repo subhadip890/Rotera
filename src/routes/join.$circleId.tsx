@@ -119,10 +119,10 @@ function JoinCircle() {
               {[
                 `You pay ${contributionXlm} XLM every cycle before the cutoff.`,
                 `There are ${totalSeats} seats — ${seatsAvailable} still available.`,
-                `If you pay after the cutoff, it's recorded as late and everyone sees it.`,
+                `If you miss the cutoff, your contribution is recorded as missed and an on-chain debt is tracked against your account.`,
                 `You can't leave once the first payout has gone out — your seat stays in the rotation.`,
                 circle.payout_order_type === "RandomPending"
-                  ? "Payout order is randomised from the ledger hash when all seats are filled — verifiable by everyone."
+                  ? "Payout order is deterministically shuffled using Stellar ledger data when all seats are filled — verifiable on-chain."
                   : "Payout order is set in join sequence — first to join receives first.",
               ].map((t) => (
                 <li key={t} className="flex gap-3">

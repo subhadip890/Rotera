@@ -240,15 +240,21 @@ export async function getCircleStateOnChain(
     const sdk = await getSdk();
     const numId = BigInt(circleId);
 
-    // Call get_status(circle_id: u64) as a read-only simulation
+    // Call get_status(circle_id: u64) as a read-only simulation.
+    // SIM_ACCOUNT is a well-known, funded Stellar Foundation account used ONLY
+    // as the source for read-only simulation transactions. It NEVER signs user
+    // transactions or holds user funds. This is the standard Soroban pattern
+    // for read operations where a funded source account is required by the SDK.
+    // Override with VITE_SOROBAN_SIM_ACCOUNT if needed.
+    const SIM_ACCOUNT =
+      (import.meta.env["VITE_SOROBAN_SIM_ACCOUNT"] as string | undefined) ||
+      "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H";
     const contract = new sdk.Contract(CONTRACT_ID);
-    const account = await getAccount(
-      "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
-    ).catch(() => ({ sequence: "0" }));
+    const account = await getAccount(SIM_ACCOUNT).catch(() => ({ sequence: "0" }));
 
     const dummyTx = new sdk.TransactionBuilder(
       new sdk.Account(
-        "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN",
+        SIM_ACCOUNT,
         account.sequence,
       ),
       {
@@ -496,8 +502,12 @@ async function getCircleIdFromTxHash(
     console.warn("[getMemberCirclesOnChain fallback error]:", err);
   }
 
-  // 3. Fallback to 1 (first contract circle ID)
-  return "1";
+  // 3. No silent fallback — returning a guessed ID would generate a wrong invite link.
+  //    Throw a clear error so the UI can surface it to the user.
+  throw new Error(
+    "Circle was created on-chain but its ID could not be read back from the transaction. " +
+    "Check the transaction on stellar.expert and use the returned circle ID manually, or retry.",
+  );
 }
 
 /**
@@ -662,4 +672,37 @@ export function stroopsToXlm(stroops: bigint): number {
 /** Convert XLM display value to stroops for contract calls */
 export function xlmToStroops(xlm: number): bigint {
   return BigInt(Math.round(xlm * 10_000_000));
+}
+
+/**
+ * Repay outstanding missed-payment debt on-chain.
+ * Transfers real XLM from the member's wallet to the contract, reducing their
+ * on-chain debt. Overpayment is rejected by the contract.
+ * Once debt reaches 0 the deposit becomes withdrawable (for completed circles).
+ */
+export async function submitRepayDebt(
+  circleId: string | number,
+  amountStroops: bigint,
+): Promise<{ txHash: string }> {
+  const userAddress = await connectFreighter();
+  const sdk = await getSdk();
+
+  const args = [
+    scAddress(sdk, userAddress),
+    sdk.nativeToScVal(BigInt(circleId), { type: "u64" }),
+    scI128(sdk, amountStroops),
+  ];
+
+  const txXdr = await buildContractTx("repay_debt", args, userAddress);
+  const signedXdr = await signStellarTx(txXdr, NETWORK_PASSPHRASE);
+  const txHash = await submitAndConfirmTransaction(signedXdr);
+
+  trackEvent("debt_repaid", {
+    circle_id: String(circleId),
+    address: userAddress,
+    amount_stroops: String(amountStroops),
+    tx_hash: txHash,
+  });
+
+  return { txHash };
 }

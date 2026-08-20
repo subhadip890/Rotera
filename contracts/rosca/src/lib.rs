@@ -470,6 +470,51 @@ impl RoteraContract {
     }
 
     // ════════════════════════════════════════════════════════════════════════
+    // repay_debt
+    // Member with outstanding missed-payment debt sends real XLM on-chain.
+    // Reduces debt by the paid amount. Prevents overpayment.
+    // Once debt reaches 0 and circle is Completed, deposit becomes withdrawable.
+    // ════════════════════════════════════════════════════════════════════════
+    pub fn repay_debt(env: Env, member: Address, circle_id: u64, amount: i128) {
+        member.require_auth();
+
+        if amount <= 0 {
+            panic!("repayment amount must be positive");
+        }
+
+        let mut circle = Self::get_circle_or_panic(&env, circle_id);
+
+        let mut state = circle.member_states.get(member.clone())
+            .unwrap_or_else(|| panic!("not a member of this circle"));
+
+        if state.debt == 0 {
+            panic!("you have no outstanding debt");
+        }
+
+        if amount > state.debt {
+            panic!("repayment exceeds outstanding debt — overpayment not allowed");
+        }
+
+        // Transfer real XLM from member to contract
+        let token_client = token::Client::new(&env, &circle.xlm_token);
+        token_client.transfer(
+            &member,
+            &env.current_contract_address(),
+            &amount,
+        );
+
+        // Reduce on-chain debt
+        state.debt -= amount;
+        circle.member_states.set(member.clone(), state.clone());
+        env.storage().persistent().set(&DataKey::Circle(circle_id), &circle);
+
+        env.events().publish(
+            (symbol_short!("repaid"), circle_id),
+            (member, amount, state.debt),
+        );
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
     // get_status / get_circle
     // Read circle state for the dashboard.
     // ════════════════════════════════════════════════════════════════════════

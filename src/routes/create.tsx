@@ -146,6 +146,15 @@ function CreateCircle() {
                 <option>Weekly</option>
                 <option>Every two weeks</option>
                 <option>Monthly</option>
+                {/* Quick-test durations for Testnet demo — enabled via VITE_ENABLE_TEST_CYCLES=true */}
+                {import.meta.env["VITE_ENABLE_TEST_CYCLES"] === "true" && (
+                  <optgroup label="⚡ Quick test (Testnet only)">
+                    <option value="10s">10 seconds (demo)</option>
+                    <option value="30s">30 seconds (demo)</option>
+                    <option value="60s">60 seconds (demo)</option>
+                    <option value="5min">5 minutes (demo)</option>
+                  </optgroup>
+                )}
               </select>
             </Field>
             <Field label="Seats" htmlFor="c-seats">
@@ -192,7 +201,7 @@ function CreateCircle() {
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               {orderType === "RandomPending"
-                ? "Order will be shuffled from the ledger hash when the last seat is filled — verifiable by everyone."
+                ? "Order will be deterministically shuffled using Stellar ledger data when the last seat is filled — verifiable on-chain."
                 : "Seats are filled in join order. Share the invite link with members in your agreed payout sequence."}
             </p>
 

@@ -10,6 +10,7 @@ import {
   useContributeMutation,
   useCloseCycleMutation,
   useWithdrawDepositMutation,
+  useRepayDebtMutation,
   stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
 
@@ -47,6 +48,7 @@ function Dashboard() {
   const contributeMutation = useContributeMutation();
   const closeCycleMutation = useCloseCycleMutation();
   const withdrawMutation = useWithdrawDepositMutation();
+  const repayDebtMutation = useRepayDebtMutation();
 
   const [now, setNow] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
@@ -211,6 +213,19 @@ function Dashboard() {
     }
   }
 
+  async function handleRepayDebt(amountStroops: bigint) {
+    if (wallet !== "connected") return;
+    setPayError(null);
+    try {
+      await repayDebtMutation.mutateAsync({
+        circleId: circleId!,
+        amountStroops,
+      });
+    } catch (err: any) {
+      setPayError(err?.message || "Debt repayment transaction failed.");
+    }
+  }
+
   const deadlinePassed =
     now !== null && circle.cycle_deadline > 0 && now / 1000 > circle.cycle_deadline;
 
@@ -289,9 +304,23 @@ function Dashboard() {
                     </>
                   )}
                   {you && you.debt > BigInt(0) && (
-                    <p className="mt-2 text-sm text-rust">
-                      You have {stroopsToXlm(you.debt)} XLM in outstanding debt — deposit is withheld.
-                    </p>
+                    <div className="mt-3 rounded-md border border-rust/30 bg-rust/5 p-4">
+                      <p className="text-sm font-medium text-rust">
+                        You have {stroopsToXlm(you.debt)} XLM in outstanding debt
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Your deposit is withheld until this debt is cleared. Repay on-chain to release your {stroopsToXlm(circle.deposit_amount)} XLM deposit.
+                      </p>
+                      <button
+                        onClick={() => void handleRepayDebt(you.debt)}
+                        disabled={repayDebtMutation.isPending || wallet !== "connected"}
+                        className="mt-3 rounded-md bg-rust px-4 py-2 text-sm font-semibold text-chalk transition-opacity duration-200 hover:opacity-90 disabled:opacity-60"
+                      >
+                        {repayDebtMutation.isPending
+                          ? "Approving in wallet…"
+                          : `Repay ${stroopsToXlm(you.debt)} XLM debt`}
+                      </button>
+                    </div>
                   )}
                 </div>
               ) : deadlinePassed ? (
@@ -300,8 +329,10 @@ function Dashboard() {
                     The cutoff has passed — ready to close cycle {circle.current_cycle}.
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Any wallet can trigger this. The contract will transfer {formatAmount(paidCount * contributionXlm)} XLM
-                    (what was contributed) to {recipient?.name || "the recipient"}.
+                    Any wallet can trigger this. Based on {paidCount} of {members.length} members
+                    who have contributed, the contract will transfer approximately{" "}
+                    <strong>{formatAmount(paidCount * contributionXlm)} XLM</strong> to {recipient?.name || "the recipient"}.
+                    The final amount is settled on-chain when close_cycle executes.
                   </p>
                   <button
                     onClick={() => void handleCloseCycle()}

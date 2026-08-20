@@ -14,6 +14,7 @@ import {
   submitContribute,
   submitCloseCycle,
   submitWithdrawDeposit,
+  submitRepayDebt,
   type OnChainCircle,
   stroopsToXlm,
   xlmToStroops,
@@ -181,15 +182,72 @@ export function useWithdrawDepositMutation() {
   });
 }
 
+/**
+ * Repay outstanding missed-payment debt on-chain.
+ * Transfers real XLM from the member's wallet to the contract, reducing debt.
+ */
+export function useRepayDebtMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      circleId,
+      amountStroops,
+    }: {
+      circleId: string | number;
+      amountStroops: bigint;
+    }) => submitRepayDebt(circleId, amountStroops),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ["circle", String(variables.circleId)],
+      });
+    },
+    onError: (err) => {
+      captureException(err, { context: "useRepayDebtMutation" });
+    },
+  });
+}
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
-function cadenceToDays(cadence: string): number {
+/**
+ * Convert a cadence string or quick-test duration to the cycle_length_days value
+ * passed to the Soroban contract's create_circle() function.
+ *
+ * CONTRACT TIMING SEMANTICS (calculate_deadline in lib.rs):
+ *   value <= 3600  →  deadline = now + value          (treats value as SECONDS)
+ *   value >  3600  →  deadline = now + value × 86400  (treats value as DAYS)
+ *
+ * ACTUAL BEHAVIOR — all current cadences send values <= 3600:
+ *   "Weekly"         → 7   → 7  <= 3600 → deadline = now + 7s    (7 second cycle on Testnet)
+ *   "Every two weeks"→ 14  → 14 <= 3600 → deadline = now + 14s   (14 second cycle on Testnet)
+ *   "Monthly"        → 30  → 30 <= 3600 → deadline = now + 30s   (30 second cycle on Testnet)
+ *   "10s"            → 10  → 10 <= 3600 → deadline = now + 10s
+ *   "30s"            → 30  → 30 <= 3600 → deadline = now + 30s
+ *   "60s"            → 60  → 60 <= 3600 → deadline = now + 60s
+ *   "5min"           → 300 → 300 <= 3600→ deadline = now + 300s
+ *
+ * All cycles currently run in seconds on Testnet — this is correct behavior
+ * for the Green Belt submission / fast demo workflow.
+ *
+ * For a true mainnet deployment, the contract would need a redeploy with
+ * cycle_duration_seconds: u64 to accept raw seconds without the dual-mode branch.
+ */
+export function cadenceToDays(cadence: string): number {
   const lower = cadence.toLowerCase();
+
+  // Explicit quick-test durations
+  if (lower === "10s" || lower === "10 seconds") return 10;
+  if (lower === "30s" || lower === "30 seconds") return 30;
+  if (lower === "60s" || lower === "1 minute") return 60;
+  if (lower === "5min" || lower === "5 minutes") return 300;
+
+  // Named cadences — on Testnet these run in seconds (7s, 14s, 30s)
   if (lower.includes("two") || lower.includes("biweekly") || lower.includes("fortnight")) {
     return 14;
   }
   if (lower.includes("month")) {
     return 30;
   }
-  return 7; // weekly default
+  return 7; // Weekly — 7 seconds on Testnet
 }
