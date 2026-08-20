@@ -44,6 +44,7 @@ function JoinLayout() {
         </Link>
         <Link
           to="/"
+          hash="how-it-works"
           className="rounded-md border border-border bg-chalk px-5 py-3 font-medium transition-colors duration-200 hover:bg-parchment"
         >
           Learn how it works

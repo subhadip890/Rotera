@@ -1,12 +1,15 @@
+import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
-import { Roundtable } from "@/components/roundtable/Roundtable";
+import { Roundtable, type Seat } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
 import {
   useCircleState,
+  useUserCircles,
   useCircleMemberNames,
   stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
+import { useIllustrativeRotation } from "@/hooks/useIllustrativeRotation";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -28,66 +31,115 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
-const HERO_SEATS = [
-  { id: "1", name: "Priya", status: "paid" as const },
-  { id: "2", name: "Tunde", status: "paid" as const },
-  { id: "3", name: "Mariela", status: "paid" as const },
-  { id: "4", name: "You", status: "waiting" as const },
-  { id: "5", name: "Samir", status: "late" as const },
-  { id: "6", name: "Nomsa", status: "waiting" as const },
-];
-
 function Landing() {
   const { activeCircleId, address } = useRotera();
-  const targetId = activeCircleId || "2"; // Default to active or live contract circle 2
-  const { data: circle } = useCircleState(targetId);
+  const { data: userCircles, isLoading: isUserCirclesLoading } = useUserCircles(address);
+
+  // Smoothly scroll to target hash section on mount or hash change
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      const id = window.location.hash.replace("#", "");
+      const el = document.getElementById(id);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: "smooth" });
+        }, 50);
+      }
+    }
+  }, []);
+
+  // Auto-resolve target circle ID:
+  //   1. Zustand-stored activeCircleId (persisted after create/join/navigate)
+  //   2. Latest circle from on-chain member list (async query result)
+  //   3. null — show illustrative demo animation
+  const targetId: string | null =
+    activeCircleId ||
+    (userCircles && userCircles.length > 0
+      ? String(userCircles[userCircles.length - 1])
+      : null);
+
+  const { data: circle, isLoading: isCircleLoading, isError } = useCircleState(targetId);
   const { data: memberNames } = useCircleMemberNames(targetId);
   const namesByAddress = memberNames || new Map<string, string>();
 
-  // Build dynamic seats matching exact on-chain circle structure
-  const seats = circle
-    ? Array.from({ length: circle.member_count }, (_, i) => {
-        if (i < circle.payout_order.length) {
-          const addr = circle.payout_order[i] || "";
-          const ms = addr ? circle.member_states.get(addr) : undefined;
-          const cycleIdx = circle.current_cycle - 1;
-          const currentCycleRecord =
-            circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
-          const paid = addr && currentCycleRecord ? (currentCycleRecord.contributions.get(addr) ?? false) : false;
-          const isLate = !paid && circle.cycle_deadline > 0 && Date.now() / 1000 > circle.cycle_deadline;
-          const isDefaulted = ms ? ms.missed_cycles > 0 : false;
-          const isMe = Boolean(address && addr === address);
+  // State 2: Real circle query is actively in-flight
+  const isQueryLoading =
+    (Boolean(address) && isUserCirclesLoading) ||
+    (Boolean(targetId) && (isCircleLoading || (!circle && !isError)));
 
-          return {
-            id: addr || `seat-${i}`,
-            name: isMe
-              ? "You"
-              : addr
-                ? (namesByAddress.get(addr) ?? `${addr.slice(0, 5)}…${addr.slice(-4)}`)
-                : `Seat ${i + 1}`,
-            status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
-          };
-        } else {
-          return {
-            id: `seat-${i}`,
-            name: `Seat ${i + 1}`,
-            status: "waiting" as const,
-          };
-        }
-      })
-    : [
-        { id: "1", name: "Priya", status: "paid" as const },
-        { id: "2", name: "Tunde", status: "paid" as const },
-        { id: "3", name: "Mariela", status: "paid" as const },
-        { id: "4", name: "You", status: "waiting" as const },
-        { id: "5", name: "Samir", status: "late" as const },
-        { id: "6", name: "Nomsa", status: "waiting" as const },
-      ];
+  // State 1: Real circle data loaded
+  const hasRealCircle = Boolean(circle && !isQueryLoading);
 
-  const currentSeat = circle ? (circle.current_cycle - 1) % circle.member_count : 3;
-  const caption = circle
-    ? `${circle.name} · cycle ${circle.current_cycle} of ${circle.member_count} · ${stroopsToXlm(circle.contribution_amount)} XLM each`
-    : "Sunday Six · cycle 4 of 6 · 200 XLM each";
+  // State 3: Disconnected / No circles at all (drive illustrative animation)
+  const isIllustrative = !hasRealCircle && !isQueryLoading;
+  const illustrative = useIllustrativeRotation(isIllustrative);
+
+  // Determine props for Roundtable based on the 3 distinct states
+  let seats: Seat[];
+  let currentSeat: number;
+  let caption: string;
+  let showLabels: boolean;
+
+  if (hasRealCircle && circle) {
+    // ── STATE 1: Real circle data loaded ──
+    seats = Array.from({ length: circle.member_count }, (_, i) => {
+      if (i < circle.payout_order.length) {
+        const addr = circle.payout_order[i] || "";
+        const ms = addr ? circle.member_states.get(addr) : undefined;
+        const cycleIdx = circle.current_cycle - 1;
+        const currentCycleRecord =
+          circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
+        const paid = addr && currentCycleRecord ? (currentCycleRecord.contributions.get(addr) ?? false) : false;
+        const isLate = !paid && circle.cycle_deadline > 0 && Date.now() / 1000 > circle.cycle_deadline;
+        const isDefaulted = ms ? ms.missed_cycles > 0 : false;
+        const isMe = Boolean(address && addr === address);
+
+        return {
+          id: addr || `seat-${i}`,
+          name: isMe
+            ? "You"
+            : addr
+              ? (namesByAddress.get(addr) ?? `${addr.slice(0, 5)}…${addr.slice(-4)}`)
+              : `Seat ${i + 1}`,
+          status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
+        };
+      } else {
+        return {
+          id: `seat-${i}`,
+          name: `Seat ${i + 1}`,
+          status: "waiting" as const,
+        };
+      }
+    });
+
+    currentSeat =
+      (circle.status === "Active" || circle.status === "Completed") && circle.current_cycle > 0
+        ? (circle.current_cycle - 1) % circle.member_count
+        : -1;
+
+    caption =
+      circle.status === "Filling"
+        ? `${circle.name} · Filling (${circle.payout_order.length}/${circle.member_count} seats) · ${stroopsToXlm(circle.contribution_amount)} XLM each`
+        : `${circle.name} · cycle ${circle.current_cycle} of ${circle.member_count} · ${stroopsToXlm(circle.contribution_amount)} XLM each`;
+
+    showLabels = true;
+  } else if (isQueryLoading) {
+    // ── STATE 2: Loading skeleton (fetching on-chain data) ──
+    seats = Array.from({ length: 6 }, (_, i) => ({
+      id: `seat-${i}`,
+      name: "",
+      status: "waiting" as const,
+    }));
+    currentSeat = -1;
+    caption = "Loading circle from Stellar…";
+    showLabels = false;
+  } else {
+    // ── STATE 3: Disconnected / No circles (Illustrative animation) ──
+    seats = illustrative.seats;
+    currentSeat = illustrative.currentSeat;
+    caption = illustrative.caption;
+    showLabels = true;
+  }
 
   return (
     <>
@@ -144,13 +196,14 @@ function Landing() {
               seats={seats}
               currentSeat={currentSeat}
               size={520}
+              showLabels={showLabels}
               caption={caption}
             />
           </motion.div>
         </div>
       </section>
 
-      <section className="border-y border-border/70 bg-chalk">
+      <section id="how-it-works" className="scroll-mt-16 border-y border-border/70 bg-chalk">
         <div className="mx-auto max-w-6xl px-5 py-16">
           <h2 className="text-3xl font-semibold">How a circle works</h2>
           <div className="mt-10 grid gap-10 md:grid-cols-3">
@@ -181,7 +234,7 @@ function Landing() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-6xl px-5 py-16">
+      <section id="wallets" className="scroll-mt-16 mx-auto max-w-6xl px-5 py-16">
         <div className="grid gap-10 md:grid-cols-2">
           <div>
             <h2 className="text-3xl font-semibold">Never used a wallet? That's fine.</h2>

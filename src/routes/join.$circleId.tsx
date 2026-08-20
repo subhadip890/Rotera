@@ -305,7 +305,11 @@ function JoinCircle() {
                 </button>
                 <p className="mt-3 text-sm text-muted-foreground">
                   No wallet yet?{" "}
-                  <Link to="/" className="text-verdigris underline underline-offset-4">
+                  <Link
+                    to="/"
+                    hash="wallets"
+                    className="text-verdigris underline underline-offset-4"
+                  >
                     Read how wallets work first
                   </Link>
                   .
