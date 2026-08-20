@@ -97,7 +97,7 @@ fn activate_circle_with_token(
 
 #[test]
 fn test_create_circle_success() {
-    let (env, organizer, members) = setup_env();
+    let (env, organizer, _members) = setup_env();
     let client = deploy_contract(&env);
     let admin = Address::generate(&env);
     let token = setup_token(&env, &admin);
@@ -205,7 +205,7 @@ fn test_join_circle_full_circle_panics() {
 #[test]
 fn test_join_deposits_held_by_contract() {
     let (env, _, members) = setup_env();
-    let client = deploy_contract(&env);
+    let _client = deploy_contract(&env);
     let contract_addr = env.register(RoteraContract, ());
     let client = RoteraContractClient::new(&env, &contract_addr);
 

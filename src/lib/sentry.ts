@@ -17,9 +17,14 @@ export function initSentry() {
   }
 }
 
-export function captureException(error: unknown, context?: Record<string, any>) {
+export function captureException(error: unknown, context?: Record<string, unknown>) {
   if (SENTRY_DSN) {
-    Sentry.captureException(error, { extra: context })
+    Sentry.withScope((scope) => {
+      if (context) {
+        scope.setExtras(context)
+      }
+      Sentry.captureException(error)
+    })
   } else {
     console.error('[Sentry Error Captured]:', error, context)
   }

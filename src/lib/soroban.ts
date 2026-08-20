@@ -165,8 +165,8 @@ async function buildContractTx(
   }
 
   // Assemble the transaction with simulation auth and footprint
-  const assembledTx = sdk.SorobanRpc?.assembleTransaction
-    ? sdk.SorobanRpc.assembleTransaction(builtTx, simResult).build()
+  const assembledTx = sdk.rpc?.assembleTransaction
+    ? sdk.rpc.assembleTransaction(builtTx, simResult).build()
     : builtTx;
 
   return assembledTx.toXDR();

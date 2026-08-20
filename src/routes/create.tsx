@@ -259,7 +259,8 @@ function CreateCircle() {
               Copy invite link
             </button>
             <Link
-              to={`/join/${realCircleId}`}
+              to="/join/$circleId"
+              params={{ circleId: realCircleId! }}
               className="ml-3 mt-3 inline-block rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-chalk transition-opacity duration-200 hover:opacity-90"
             >
               Open circle

@@ -38,9 +38,11 @@ export async function connectFreighter(): Promise<string> {
   }
 
   const isConnFn = freighter.isConnected ?? freighter.default?.isConnected;
+  const requestAccessFn = freighter.requestAccess ?? freighter.default?.requestAccess;
+  const setAllowedFn = freighter.setAllowed ?? freighter.default?.setAllowed;
   const getAddrFn = freighter.getAddress ?? freighter.default?.getAddress;
 
-  if (!isConnFn || !getAddrFn) {
+  if (!isConnFn) {
     throw new WalletConnectionError(
       'NOT_INSTALLED',
       'Freighter wallet extension is not installed or enabled.',
@@ -50,66 +52,118 @@ export async function connectFreighter(): Promise<string> {
   let connected: boolean;
   try {
     const result = await isConnFn();
-    // Freighter API v6 returns { isConnected: boolean } or boolean
-    connected = typeof result === 'object' ? result.isConnected : result;
+    connected = typeof result === 'object' ? Boolean(result?.isConnected) : Boolean(result);
   } catch {
     throw new WalletConnectionError(
       'NOT_INSTALLED',
-      'Freighter is not installed. Download it from freighter.app.',
+      'Freighter extension not detected. Please install Freighter from freighter.app.',
     );
   }
 
   if (!connected) {
     throw new WalletConnectionError(
       'NOT_INSTALLED',
-      'Freighter is not installed or not enabled. Download it from freighter.app.',
+      'Freighter extension not detected or not enabled. Please install Freighter from freighter.app.',
     );
   }
 
-  let addrResult: any;
-  try {
-    addrResult = await getAddrFn();
-  } catch (err: any) {
-    const msg = err?.message || '';
-    if (msg.includes('cancel') || msg.includes('reject') || msg.includes('denied')) {
-      throw new WalletConnectionError('REJECTED', 'Freighter connection was rejected by the user.');
+  let address = '';
+  let errorMsg = '';
+
+  // 1. Try requestAccess() first (this triggers the authorization popup in Freighter)
+  if (typeof requestAccessFn === 'function') {
+    try {
+      const accessRes = await requestAccessFn();
+      if (typeof accessRes === 'string') {
+        address = accessRes;
+      } else if (accessRes?.address) {
+        address = accessRes.address;
+      } else if (accessRes?.publicKey) {
+        address = accessRes.publicKey;
+      } else if (accessRes?.error) {
+        errorMsg = accessRes.error;
+      }
+    } catch (err: any) {
+      errorMsg = err?.message || String(err);
     }
-    throw new WalletConnectionError('UNKNOWN', msg || 'Freighter returned an unexpected error.');
   }
 
-  if (addrResult?.error) {
-    const errStr = String(addrResult.error).toLowerCase();
-    if (errStr.includes('cancel') || errStr.includes('reject')) {
-      throw new WalletConnectionError('REJECTED', addrResult.error);
+  // 2. If requestAccess didn't yield an address, prompt via setAllowed()
+  if (!address && typeof setAllowedFn === 'function') {
+    try {
+      await setAllowedFn();
+    } catch {
+      // ignore
     }
-    throw new WalletConnectionError('UNKNOWN', addrResult.error);
   }
 
-  if (!addrResult?.address) {
+  // 3. Try getAddress() as final fallback
+  if (!address && typeof getAddrFn === 'function') {
+    try {
+      const addrRes = await getAddrFn();
+      if (typeof addrRes === 'string') {
+        address = addrRes;
+      } else if (addrRes?.address) {
+        address = addrRes.address;
+      } else if (addrRes?.publicKey) {
+        address = addrRes.publicKey;
+      } else if (addrRes?.error && !errorMsg) {
+        errorMsg = addrRes.error;
+      }
+    } catch (err: any) {
+      if (!errorMsg) errorMsg = err?.message || String(err);
+    }
+  }
+
+  if (!address) {
+    const lower = errorMsg.toLowerCase();
+    if (
+      lower.includes('decline') ||
+      lower.includes('cancel') ||
+      lower.includes('reject') ||
+      lower.includes('denied') ||
+      lower.includes('user')
+    ) {
+      throw new WalletConnectionError(
+        'REJECTED',
+        'Wallet connection request was declined in Freighter.',
+      );
+    }
     throw new WalletConnectionError(
       'REJECTED',
-      'Could not retrieve wallet address. Make sure Freighter is unlocked and connected to Testnet.',
+      errorMsg ||
+        'Could not retrieve wallet address. Please unlock Freighter and grant permission when prompted.',
     );
   }
 
-  return addrResult.address;
+  return address;
 }
 
 /**
- * Check the connected network and warn if not Testnet.
+ * Check the connected network — returns network details or null.
+ * Freighter getNetworkDetails returns: { network, networkUrl, networkPassphrase, sorobanRpcUrl }
  */
-export async function getNetworkDetails(): Promise<{ network: string; passphrase: string } | null> {
+export async function getNetworkDetails(): Promise<{
+  network: string;
+  networkPassphrase: string;
+  sorobanRpcUrl?: string;
+} | null> {
   if (typeof window === 'undefined') return null;
   try {
     const freighter = await import('@stellar/freighter-api');
-    const getNetworkFn =
+    const getNetworkDetailsFn =
       freighter.getNetworkDetails ?? freighter.default?.getNetworkDetails;
-    if (!getNetworkFn) return null;
-    const result = await getNetworkFn();
-    return {
-      network: result?.network || result?.networkName || '',
-      passphrase: result?.networkPassphrase || result?.passphrase || '',
+    if (!getNetworkDetailsFn) return null;
+    const result = await getNetworkDetailsFn();
+    if (result?.error) return null;
+    const details: { network: string; networkPassphrase: string; sorobanRpcUrl?: string } = {
+      network: result.network || '',
+      networkPassphrase: result.networkPassphrase || '',
     };
+    if (result.sorobanRpcUrl) {
+      details.sorobanRpcUrl = result.sorobanRpcUrl;
+    }
+    return details;
   } catch {
     return null;
   }
@@ -141,8 +195,16 @@ export async function signStellarTx(
     });
   } catch (err: any) {
     const msg = (err?.message || '').toLowerCase();
-    if (msg.includes('cancel') || msg.includes('reject') || msg.includes('denied') || msg.includes('user')) {
-      throw new WalletConnectionError('CANCELLED', 'Transaction signing was cancelled by the user.');
+    if (
+      msg.includes('cancel') ||
+      msg.includes('reject') ||
+      msg.includes('denied') ||
+      msg.includes('user')
+    ) {
+      throw new WalletConnectionError(
+        'CANCELLED',
+        'Transaction signing was cancelled by the user.',
+      );
     }
     throw new WalletConnectionError('UNKNOWN', err?.message || 'Transaction signing failed.');
   }
@@ -160,10 +222,13 @@ export async function signStellarTx(
  * Returns the transaction hash on success. Throws on failure.
  */
 export async function submitAndConfirmTransaction(signedXdr: string): Promise<string> {
-  const networkPassphrase = import.meta.env.VITE_SOROBAN_NETWORK_PASSPHRASE || TESTNET_PASSPHRASE;
+  const networkPassphrase =
+    import.meta.env.VITE_SOROBAN_NETWORK_PASSPHRASE || TESTNET_PASSPHRASE;
+  const rpcUrl =
+    import.meta.env.VITE_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org';
 
   // Send transaction
-  const sendRes = await fetch(SOROBAN_RPC_URL, {
+  const sendRes = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -203,7 +268,7 @@ export async function submitAndConfirmTransaction(signedXdr: string): Promise<st
   for (let i = 0; i < MAX_POLLS; i++) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
-    const getRes = await fetch(SOROBAN_RPC_URL, {
+    const getRes = await fetch(rpcUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -222,10 +287,16 @@ export async function submitAndConfirmTransaction(signedXdr: string): Promise<st
     }
     if (txStatus === 'FAILED') {
       const resultXdr = getData?.result?.resultXdr || '';
-      throw new Error(`Transaction failed on-chain. Hash: ${txHash}. Result: ${resultXdr}`);
+      throw new Error(
+        `Transaction failed on-chain. Hash: ${txHash}. Result: ${resultXdr}`,
+      );
     }
     // PENDING or NOT_FOUND — keep polling
   }
 
-  throw new Error(`Transaction confirmation timeout after ${MAX_POLLS * POLL_INTERVAL_MS / 1000}s. Hash: ${txHash}`);
+  throw new Error(
+    `Transaction confirmation timeout after ${(MAX_POLLS * POLL_INTERVAL_MS) / 1000}s. Hash: ${txHash}`,
+  );
 }
+
+
