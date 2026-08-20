@@ -306,6 +306,25 @@ export async function getCircleStateOnChain(
 }
 
 /**
+ * Helper to defensively decode unit-variant Rust enums (e.g. CircleStatus, PayoutOrderType)
+ * from whatever shape @stellar/stellar-sdk scValToNative produces:
+ * - array with symbol: ["Active"] -> "Active"
+ * - plain string: "Active" -> "Active"
+ * - tag object: { tag: "Active" } -> "Active"
+ * - unit object: { Active: null } / { Active: void 0 } -> "Active"
+ */
+export function decodeEnumVariant(val: any, fallback: string): string {
+  if (typeof val === "string") return val;
+  if (Array.isArray(val) && typeof val[0] === "string") return val[0];
+  if (val && typeof val === "object") {
+    if (typeof val.tag === "string") return val.tag; // some SDK versions / formats
+    const keys = Object.keys(val);
+    if (keys.length > 0 && typeof keys[0] === "string") return keys[0];
+  }
+  return fallback;
+}
+
+/**
  * Decode a Soroban CircleState ScVal into our OnChainCircle type.
  */
 function decodeCircleState(sdk: any, scVal: any): OnChainCircle | null {
@@ -313,9 +332,8 @@ function decodeCircleState(sdk: any, scVal: any): OnChainCircle | null {
     const native = sdk.scValToNative(scVal);
     if (!native || typeof native !== "object") return null;
 
-    const statusKey = Object.keys(native.status || {})[0] || "Filling";
-    const orderTypeKey =
-      Object.keys(native.payout_order_type || {})[0] || "Manual";
+    const statusKey = decodeEnumVariant(native.status, "Filling");
+    const orderTypeKey = decodeEnumVariant(native.payout_order_type, "Manual");
 
     const memberStates = new Map<string, OnChainMember>();
     if (native.member_states) {

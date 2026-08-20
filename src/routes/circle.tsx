@@ -78,6 +78,7 @@ function Dashboard() {
 
   const [now, setNow] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setNow(Date.now());
@@ -94,7 +95,7 @@ function Dashboard() {
             name: "",
             status: "waiting" as const,
           }))}
-          currentSeat={0}
+          currentSeat={-1}
           size={300}
           showLabels={false}
           className="mx-auto"
@@ -176,9 +177,13 @@ function Dashboard() {
   });
 
   const members = seats.filter((s) => s.id && !s.id.startsWith("seat-"));
-  const currentSeat = (circle.current_cycle - 1) % circle.member_count;
-  const recipient = seats[currentSeat];
-  const isMyTurn = recipient?.id === address;
+  // Guard currentSeat so it never goes negative: only compute when active/completed and current_cycle > 0
+  const currentSeat =
+    (circle.status === "Active" || circle.status === "Completed") && circle.current_cycle > 0
+      ? (circle.current_cycle - 1) % circle.member_count
+      : -1;
+  const recipient = currentSeat >= 0 ? seats[currentSeat] : null;
+  const isMyTurn = Boolean(recipient && recipient.id === address);
   const you = address ? members.find((m) => m.id === address) : null;
   const paidCount = members.filter((m) => m.status === "paid").length;
 
@@ -202,6 +207,10 @@ function Dashboard() {
     }
     if (!effectiveCircleId) {
       setPayError("No active circle. Join or create a circle first.");
+      return;
+    }
+    if (circle?.status !== "Active") {
+      setPayError("This circle is not active yet. All seats must be filled before payments start.");
       return;
     }
     setPayError(null);
@@ -240,7 +249,7 @@ function Dashboard() {
       await closeCycleMutation.mutateAsync({
         circleId: effectiveCircleId,
         cycleNumber: circle!.current_cycle,
-        recipientName: recipient?.name || "Member",
+        recipientName: recipient?.name ?? "Member",
         amountXlm: potXlm,
       });
     } catch (err: any) {
@@ -292,7 +301,9 @@ function Dashboard() {
             <p className="num text-xs uppercase tracking-[0.18em] text-verdigris">
               {circle.status === "Completed"
                 ? "Completed"
-                : `Cycle ${circle.current_cycle} of ${circle.member_count}`}{" "}
+                : circle.status === "Filling"
+                  ? `Filling (${circle.payout_order.length}/${circle.member_count} seats)`
+                  : `Cycle ${circle.current_cycle} of ${circle.member_count}`}{" "}
               · {cadenceLabel} · #{circleId}
             </p>
             <h1 className="mt-2 text-4xl font-semibold">{circle.name}</h1>
@@ -312,9 +323,11 @@ function Dashboard() {
               currentSeat={currentSeat}
               size={380}
               caption={
-                circle.status === "Completed"
-                  ? "Circle completed — all payouts done"
-                  : `${isMyTurn ? "It's your turn — you receive" : `${recipient?.name} receives`} ${formatAmount(potXlm)} XLM this cycle`
+                circle.status === "Filling"
+                  ? `Waiting for ${circle.member_count - circle.payout_order.length} more member${circle.member_count - circle.payout_order.length === 1 ? "" : "s"} to join`
+                  : circle.status === "Completed"
+                    ? "Circle completed — all payouts done"
+                    : `${isMyTurn ? "It's your turn — you receive" : `${recipient?.name ?? "The recipient"} receives`} ${formatAmount(potXlm)} XLM this cycle`
               }
             />
           </div>
@@ -323,21 +336,80 @@ function Dashboard() {
             <div className="grid gap-4 sm:grid-cols-3">
               <Stat label="Your share" value={`${formatAmount(contributionXlm)} XLM`} />
               <Stat
-                label={deadlinePassed ? "Deadline passed" : "Cutoff in"}
+                label={
+                  circle.status === "Filling"
+                    ? "Status"
+                    : deadlinePassed
+                      ? "Deadline passed"
+                      : "Cutoff in"
+                }
                 value={
-                  deadlinePassed
-                    ? "Pending close"
-                    : now === null || circle.cycle_deadline === 0
-                      ? "—"
-                      : countdown(cutoffMs, now)
+                  circle.status === "Filling"
+                    ? "Waiting for seats"
+                    : deadlinePassed
+                      ? "Pending close"
+                      : now === null || circle.cycle_deadline === 0
+                        ? "—"
+                        : countdown(cutoffMs, now)
                 }
               />
-              <Stat label="Paid so far" value={`${paidCount} of ${members.length}`} />
+              <Stat
+                label={circle.status === "Filling" ? "Seats filled" : "Paid so far"}
+                value={
+                  circle.status === "Filling"
+                    ? `${circle.payout_order.length} of ${circle.member_count}`
+                    : `${paidCount} of ${members.length}`
+                }
+              />
             </div>
 
-            {/* Pay / Close / Withdraw panel */}
+            {/* Pay / Close / Withdraw / Filling panel */}
             <div className="rounded-xl border border-border bg-chalk p-5">
-              {circle.status === "Completed" ? (
+              {circle.status === "Filling" ? (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block h-2.5 w-2.5 rounded-full bg-brass animate-pulse" />
+                    <p className="font-semibold text-ink">Waiting for members</p>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Waiting for{" "}
+                    <strong className="text-ink">
+                      {circle.member_count - circle.payout_order.length} more member
+                      {circle.member_count - circle.payout_order.length === 1 ? "" : "s"}
+                    </strong>{" "}
+                    to join before the first cycle starts. Once all {circle.member_count} seats are filled,
+                    the circle will activate automatically on Stellar.
+                  </p>
+
+                  {/* Invite link sharing */}
+                  <div className="mt-4 rounded-lg border border-border bg-parchment/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Share Invite Link
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        readOnly
+                        value={`${typeof window !== "undefined" ? window.location.origin : ""}/join/${effectiveCircleId}`}
+                        className="flex-1 rounded-md border border-border bg-chalk px-3 py-2 text-xs font-mono text-muted-foreground select-all focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof navigator !== "undefined") {
+                            const url = `${window.location.origin}/join/${effectiveCircleId}`;
+                            navigator.clipboard.writeText(url).catch(() => {});
+                            setCopied(true);
+                            setTimeout(() => setCopied(false), 2000);
+                          }
+                        }}
+                        className="rounded-md bg-brass px-4 py-2 text-xs font-semibold text-ink transition-opacity hover:opacity-90 shrink-0"
+                      >
+                        {copied ? "Copied!" : "Copy link"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : circle.status === "Completed" ? (
                 <div>
                   <p className="font-medium text-verdigris">
                     This circle has completed all {circle.member_count} cycles.
@@ -384,7 +456,7 @@ function Dashboard() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     Any wallet can trigger this. Based on {paidCount} of {members.length} members
                     who have contributed, the contract will transfer approximately{" "}
-                    <strong>{formatAmount(paidCount * contributionXlm)} XLM</strong> to {recipient?.name || "the recipient"}.
+                    <strong>{formatAmount(paidCount * contributionXlm)} XLM</strong> to {recipient?.name ?? "the recipient"}.
                     The final amount is settled on-chain when close_cycle executes.
                   </p>
                   <button
@@ -394,7 +466,7 @@ function Dashboard() {
                   >
                     {closeCycleMutation.isPending
                       ? "Executing close_cycle on Stellar…"
-                      : `Close cycle and pay out ${recipient?.name || "recipient"}`}
+                      : `Close cycle and pay out ${recipient?.name ?? "the recipient"}`}
                   </button>
                 </div>
               ) : you?.status === "paid" ? (
@@ -403,7 +475,7 @@ function Dashboard() {
                     Your {formatAmount(contributionXlm)} XLM is in for this cycle.
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Nothing else to do until {isMyTurn ? "you are" : `${recipient?.name} is`} paid out and the ring turns.
+                    Nothing else to do until {isMyTurn ? "you are" : `${recipient?.name ?? "the recipient"} is`} paid out and the ring turns.
                   </p>
                   {deadlinePassed && (
                     <button
@@ -413,7 +485,7 @@ function Dashboard() {
                     >
                       {closeCycleMutation.isPending
                         ? "Executing Soroban keeper close_cycle…"
-                        : `Close cycle and pay out ${recipient?.name || "recipient"}`}
+                        : `Close cycle and pay out ${recipient?.name ?? "the recipient"}`}
                     </button>
                   )}
                 </div>
@@ -425,7 +497,7 @@ function Dashboard() {
                   <p className="mt-1 text-sm text-muted-foreground">
                     {isMyTurn
                       ? "It goes into your own payout this cycle — the contract holds it until close."
-                      : `Goes straight to ${recipient?.name}'s payout when the cycle closes.`}
+                      : `Goes straight to ${recipient?.name ?? "the recipient"}'s payout when the cycle closes.`}
                   </p>
                   <button
                     onClick={() => void handlePay()}
@@ -457,7 +529,7 @@ function Dashboard() {
             {/* Member list */}
             <div className="overflow-hidden rounded-xl border border-border bg-chalk">
               <h2 className="border-b border-border px-5 py-3.5 text-sm font-semibold">
-                This cycle
+                {circle.status === "Filling" ? "Joined members" : "This cycle"}
               </h2>
               <ul>
                 {members.map((m, i) => (
@@ -474,7 +546,7 @@ function Dashboard() {
                         you
                       </span>
                     )}
-                    {i === currentSeat && (
+                    {i === currentSeat && currentSeat >= 0 && (
                       <span className="rounded-full bg-brass/20 px-2 py-0.5 text-xs font-medium text-ink">
                         their turn
                       </span>

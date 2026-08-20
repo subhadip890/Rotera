@@ -52,9 +52,13 @@ export function Roundtable({
         viewBox="0 0 400 400"
         width="100%"
         role="img"
-        aria-label={`Rotation ring with ${count} seats. Seat ${currentSeat + 1}, ${
-          seats[currentSeat]?.name ?? "next member"
-        }, receives this cycle's pot.`}
+        aria-label={
+          currentSeat >= 0
+            ? `Rotation ring with ${count} seats. Seat ${currentSeat + 1}, ${
+                seats[currentSeat]?.name ?? "next member"
+              }, receives this cycle's pot.`
+            : `Rotation ring with ${count} seats. Circle is currently filling.`
+        }
       >
         <defs>
           <radialGradient id="rt-glow" cx="50%" cy="50%" r="50%">
@@ -200,7 +204,7 @@ export function Roundtable({
           letterSpacing="1.4"
           fontFamily="Public Sans, sans-serif"
         >
-          THIS CYCLE
+          {currentSeat >= 0 ? "THIS CYCLE" : "STATUS"}
         </text>
         <text
           x={cx}
@@ -210,7 +214,7 @@ export function Roundtable({
           fontSize="22"
           fontFamily="IBM Plex Mono, monospace"
         >
-          {seats[currentSeat]?.name ?? "—"}
+          {currentSeat >= 0 ? (seats[currentSeat]?.name ?? "—") : "Filling"}
         </text>
         </>
         )}
