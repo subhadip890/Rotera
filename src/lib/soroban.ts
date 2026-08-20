@@ -81,7 +81,10 @@ export interface OnChainCircle {
 
 // ─── Low-level RPC helpers ──────────────────────────────────────────────────
 
-async function simulateTransaction(txXdr: string): Promise<any> {
+async function simulateTransaction(txXdr: string, label?: string): Promise<any> {
+  if (import.meta.env.DEV && label) {
+    console.log(`[Soroban] simulateTransaction → ${label}`);
+  }
   const res = await fetch(SOROBAN_RPC_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -95,6 +98,9 @@ async function simulateTransaction(txXdr: string): Promise<any> {
   if (!res.ok) throw new Error(`RPC HTTP error: ${res.status}`);
   const data = await res.json();
   if (data.error) throw new Error(`simulateTransaction error: ${JSON.stringify(data.error)}`);
+  if (import.meta.env.DEV && data.result?.error) {
+    console.error(`[Soroban] simulateTransaction FAILED (${label}):`, data.result.error);
+  }
   return data.result;
 }
 
@@ -160,7 +166,7 @@ async function buildContractTx(
     .build();
 
   // Simulate to get auth + soroban data
-  const simResult = await simulateTransaction(builtTx.toXDR());
+  const simResult = await simulateTransaction(builtTx.toXDR(), method);
 
   if (simResult.error) {
     throw new Error(`Contract simulation failed: ${simResult.error}`);

@@ -47,12 +47,20 @@ function Dashboard() {
 
   const { data: userCircles } = useUserCircles(address);
 
-  // Auto-resolve effective circle ID: stored active ID -> latest user circle -> fallback "3"
-  const effectiveCircleId =
+  // Auto-resolve effective circle ID:
+  //   1. Zustand-stored activeCircleId (persisted after create/join/navigate)
+  //   2. Latest circle from on-chain member list (async query result)
+  //   3. null — show "No circles yet" state (do NOT fall back to hardcoded Circle #3)
+  //
+  // IMPORTANT: effectiveCircleId is the SINGLE source of truth for ALL mutations
+  // (contribute, close_cycle, withdraw_deposit, repay_debt). Using any other
+  // variable (especially the raw `circleId` from Zustand, which may be null)
+  // causes WasmVm InvalidAction because the contract panics on a non-existent circle ID.
+  const effectiveCircleId: string | null =
     circleId ||
     (userCircles && userCircles.length > 0
       ? String(userCircles[userCircles.length - 1])
-      : "3");
+      : null);
 
   const { data: circle, isLoading, isError } = useCircleState(effectiveCircleId);
 
@@ -192,14 +200,26 @@ function Dashboard() {
       setPayError("Your wallet isn't connected. Connect it from the top right, then pay your share.");
       return;
     }
+    if (!effectiveCircleId) {
+      setPayError("No active circle. Join or create a circle first.");
+      return;
+    }
     setPayError(null);
+    if (import.meta.env.DEV) {
+      console.log(`[Rotera] handlePay → contribute(circle=${effectiveCircleId}, cycle=${circle!.current_cycle})`);
+    }
     try {
       await contributeMutation.mutateAsync({
-        circleId: circleId!,
+        circleId: effectiveCircleId,
         cycleNumber: circle!.current_cycle,
       });
     } catch (err: any) {
-      setPayError(err?.message || "Contribution transaction failed.");
+      // Surface the real contract error to help diagnose issues
+      const msg = err?.message || "Contribution transaction failed.";
+      setPayError(msg);
+      if (import.meta.env.DEV) {
+        console.error(`[Rotera] contribute failed (circle=${effectiveCircleId}):`, err);
+      }
     }
   }
 
@@ -208,10 +228,17 @@ function Dashboard() {
       setPayError("Connect your wallet to trigger cycle close.");
       return;
     }
+    if (!effectiveCircleId) {
+      setPayError("No active circle.");
+      return;
+    }
     setPayError(null);
+    if (import.meta.env.DEV) {
+      console.log(`[Rotera] handleCloseCycle → close_cycle(circle=${effectiveCircleId}, cycle=${circle!.current_cycle})`);
+    }
     try {
       await closeCycleMutation.mutateAsync({
-        circleId: circleId!,
+        circleId: effectiveCircleId,
         cycleNumber: circle!.current_cycle,
         recipientName: recipient?.name || "Member",
         amountXlm: potXlm,
@@ -223,9 +250,13 @@ function Dashboard() {
 
   async function handleWithdrawDeposit() {
     if (wallet !== "connected") return;
+    if (!effectiveCircleId) return;
     setPayError(null);
+    if (import.meta.env.DEV) {
+      console.log(`[Rotera] handleWithdrawDeposit → withdraw_deposit(circle=${effectiveCircleId})`);
+    }
     try {
-      await withdrawMutation.mutateAsync({ circleId: circleId! });
+      await withdrawMutation.mutateAsync({ circleId: effectiveCircleId });
     } catch (err: any) {
       setPayError(err?.message || "Deposit withdrawal failed.");
     }
@@ -233,10 +264,14 @@ function Dashboard() {
 
   async function handleRepayDebt(amountStroops: bigint) {
     if (wallet !== "connected") return;
+    if (!effectiveCircleId) return;
     setPayError(null);
+    if (import.meta.env.DEV) {
+      console.log(`[Rotera] handleRepayDebt → repay_debt(circle=${effectiveCircleId}, amount=${amountStroops})`);
+    }
     try {
       await repayDebtMutation.mutateAsync({
-        circleId: circleId!,
+        circleId: effectiveCircleId,
         amountStroops,
       });
     } catch (err: any) {

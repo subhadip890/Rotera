@@ -1195,3 +1195,33 @@ fn test_repay_debt_full_then_withdraw_deposit() {
     let after = token_client.balance(&debtor);
     assert_eq!(after - before, deposit_amount, "deposit returned after debt cleared");
 }
+
+// ─── Regression: Wrong Circle ID Panics ──────────────────────────────────────
+
+/// Regression test for production bug: WasmVm InvalidAction on contribute.
+///
+/// Root cause was the frontend passing a stale/null Zustand `circleId` instead
+/// of the correctly-resolved `effectiveCircleId`. The contract's `get_circle_or_panic`
+/// calls `panic!("circle not found")` which compiles to the Wasm `unreachable`
+/// instruction — surfaced as `Error(WasmVm, InvalidAction)` in Soroban simulation.
+///
+/// This test documents and locks that behavior: any call to `contribute` with a
+/// non-existent circle_id MUST panic.
+#[test]
+#[should_panic(expected = "circle not found")]
+fn test_contribute_nonexistent_circle_panics() {
+    let env = Env::default();
+    env.mock_all_auths();
+
+    let token_admin = Address::generate(&env);
+    let member = Address::generate(&env);
+    let token = setup_token(&env, &token_admin);
+    fund_address(&env, &token, &token_admin, &member, 10_000_000_000);
+
+    let contract_id = env.register(RoteraContract, ());
+    let client = RoteraContractClient::new(&env, &contract_id);
+
+    // Circle ID 9999 was never created — must panic with "circle not found"
+    client.contribute(&member, &9999u64);
+}
+

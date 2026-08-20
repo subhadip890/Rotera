@@ -1,15 +1,15 @@
-# Rotera — Savings Circles That Run Themselves
+ï»¿# Rotera ï¿½ Savings Circles That Run Themselves
 
-> **Level 4 — Green Belt Submission** | Stellar/Soroban Rotating Savings Circle (ROSCA) Protocol
+> **Level 4 ï¿½ Green Belt Submission** | Stellar/Soroban Rotating Savings Circle (ROSCA) Protocol
 
-Rotera takes the informal rotating savings arrangement used by billions of people worldwide — known as *chit funds* in India, *susu* in West Africa, *tanda* in Latin America, *stokvel* in South Africa, and *ajo* in Nigeria — and replaces the trusted human organizer with an automated, transparent smart contract on Stellar/Soroban.
+Rotera takes the informal rotating savings arrangement used by billions of people worldwide ï¿½ known as *chit funds* in India, *susu* in West Africa, *tanda* in Latin America, *stokvel* in South Africa, and *ajo* in Nigeria ï¿½ and replaces the trusted human organizer with an automated, transparent smart contract on Stellar/Soroban.
 
 ---
 
 ## ?? What Rotera Does
 
 1. **Agree Once**: A fixed group of members (e.g. 6 people) commit to a fixed contribution (e.g. 200 XLM) on a regular schedule (weekly/biweekly/monthly).
-2. **Pay Your Share**: Each cycle, members contribute their share before the cutoff deadline. Rotera tracks who has paid and who has missed — no chasing in WhatsApp groups required.
+2. **Pay Your Share**: Each cycle, members contribute their share before the cutoff deadline. Rotera tracks who has paid and who has missed ï¿½ no chasing in WhatsApp groups required.
 3. **Take Your Turn**: When the cycle closes, the entire pot transfers to the wallet of whichever seat is up next. A keeper call triggers `close_cycle` after the deadline passes. The ring then turns one notch for the next cycle.
 
 ---
@@ -18,22 +18,22 @@ Rotera takes the informal rotating savings arrangement used by billions of peopl
 
 ```
 +---------------------------------------------------------+
-¦              Rotera TanStack Start Frontend             ¦
-¦   (TanStack Router + Query + Zustand + Tailwind + Motion)¦
+ï¿½              Rotera TanStack Start Frontend             ï¿½
+ï¿½   (TanStack Router + Query + Zustand + Tailwind + Motion)ï¿½
 +---------------------------------------------------------+
-               ¦                          ¦
+               ï¿½                          ï¿½
                ?                          ?
 +-----------------------------+ +-------------------------+
-¦     Stellar/Soroban Smart   ¦ ¦   Observability & Data  ¦
-¦          Contract           ¦ ¦ ----------------------- ¦
-¦ --------------------------- ¦ ¦ • Sentry (Errors)       ¦
-¦ • create_circle             ¦ ¦ • PostHog (Analytics)   ¦
-¦ • join_circle               ¦ ¦ • Supabase (Feedback)   ¦
-¦ • contribute                ¦ ¦ • Freighter Wallet API  ¦
-¦ • close_cycle (Keeper)      ¦ +-------------------------+
-¦ • repay_debt                ¦
-¦ • get_status                ¦
-¦ • withdraw_deposit          ¦
+ï¿½     Stellar/Soroban Smart   ï¿½ ï¿½   Observability & Data  ï¿½
+ï¿½          Contract           ï¿½ ï¿½ ----------------------- ï¿½
+ï¿½ --------------------------- ï¿½ ï¿½ ï¿½ Sentry (Errors)       ï¿½
+ï¿½ ï¿½ create_circle             ï¿½ ï¿½ ï¿½ PostHog (Analytics)   ï¿½
+ï¿½ ï¿½ join_circle               ï¿½ ï¿½ ï¿½ Supabase (Feedback)   ï¿½
+ï¿½ ï¿½ contribute                ï¿½ ï¿½ ï¿½ Freighter Wallet API  ï¿½
+ï¿½ ï¿½ close_cycle (Keeper)      ï¿½ +-------------------------+
+ï¿½ ï¿½ repay_debt                ï¿½
+ï¿½ ï¿½ get_status                ï¿½
+ï¿½ ï¿½ withdraw_deposit          ï¿½
 +-----------------------------+
 ```
 
@@ -48,12 +48,12 @@ Rotera takes the informal rotating savings arrangement used by billions of peopl
 **Join-order (Manual)**: Members receive payouts in join sequence.
 
 **Randomised**: When the last seat is filled, the contract performs a deterministic Fisher-Yates shuffle using:
-- Seed bytes 0–7: `ledger().timestamp()` (u64)
-- Seed bytes 8–11: `ledger().sequence()` (u32)
-- Seed bytes 12–15: constant `0xDEADBEEF`
+- Seed bytes 0ï¿½7: `ledger().timestamp()` (u64)
+- Seed bytes 8ï¿½11: `ledger().sequence()` (u32)
+- Seed bytes 12ï¿½15: constant `0xDEADBEEF`
 - PRNG: LCG (multiplier 6364136223846793005)
 
-This is fully on-chain and verifiable from the activation transaction. Ledger timestamp and sequence are predictable by validators — a documented trade-off for trust-based group savings.
+This is fully on-chain and verifiable from the activation transaction. Ledger timestamp and sequence are predictable by validators ï¿½ a documented trade-off for trust-based group savings.
 
 ### 3. Cycle Timing - Accelerated Testnet vs Production
 
@@ -102,11 +102,11 @@ A mainnet redeployment uses \cycle_duration_seconds: u64\ (no dual-mode branch):
 | Monthly (30 days) | 2,592,000 | now + 2,592,000s = exactly 30 days |
 
 Documented in \PRODUCTION_CADENCES_SECONDS\ (useSorobanQueries.ts).
-Verified by the \	est_production_cadence_math\ contract test (41 total tests pass).
+Verified by the \	est_production_cadence_math\ contract test (42 total tests pass).
 
 ### 4. Frontend Data Architecture
 
-- **TanStack Query** is the sole source of truth for all blockchain state. Page refresh or new browser reconstructs state from Soroban — no stale local data.
+- **TanStack Query** is the sole source of truth for all blockchain state. Page refresh or new browser reconstructs state from Soroban ï¿½ no stale local data.
 - **Zustand** holds only transient UI state (wallet status, onboarding, payout modal).
 - All financial mutations require Freighter wallet signing.
 
@@ -156,7 +156,7 @@ cd contracts/rosca
 cargo test
 ```
 
-**41 tests pass**, covering: circle creation, joining/activation, contributions, `close_cycle` payout transfers, full rotation, deposit withdrawal, `repay_debt` (partial/full/overpayment/unauthorized), random ordering seed verification, cycle timing (10s/30s/60s/5min), production cadence math, and proof that production values cannot be used with the current Testnet contract.
+**42 tests pass**, covering: circle creation, joining/activation, contributions, `close_cycle` payout transfers, full rotation, deposit withdrawal, `repay_debt` (partial/full/overpayment/unauthorized), random ordering seed verification, cycle timing (10s/30s/60s/5min), production cadence math, proof that production values cannot be used with the current Testnet contract, and regression coverage for wrong-circle-ID panics (`test_contribute_nonexistent_circle_panics`).
 
 ---
 
@@ -165,8 +165,8 @@ cargo test
 1. **Permissionless Keeper**: `close_cycle` must be triggered externally after deadline. Anyone can call it.
 2. **Shortfall Handling**: Missed contributions reduce payout and create on-chain debt. `repay_debt()` lets members settle.
 3. **Early-Exit Protection**: 10% entry deposit held until circle completion and full debt clearance.
-4. **Randomness Source**: Ledger timestamp + sequence — deterministic but predictable by validators. Acceptable for trust-based group savings.
-5. **Read-Only Simulation Account**: Soroban read calls use a Stellar Foundation public account solely for fee simulation — it never signs user transactions or holds funds.
+4. **Randomness Source**: Ledger timestamp + sequence ï¿½ deterministic but predictable by validators. Acceptable for trust-based group savings.
+5. **Read-Only Simulation Account**: Soroban read calls use a Stellar Foundation public account solely for fee simulation ï¿½ it never signs user transactions or holds funds.
 
 ---
 
@@ -175,8 +175,8 @@ cargo test
 - [x] **Public GitHub Repository**: [github.com/subhadip890/Rotera](https://github.com/subhadip890/Rotera)
 - [x] **15+ Meaningful Commits**: Clean Git commit history
 - [x] **Stellar Testnet Deployment**: `CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`
-- [x] **Real Wallet Support**: Freighter API — all transactions require wallet signing
+- [x] **Real Wallet Support**: Freighter API ï¿½ all transactions require wallet signing
 - [x] **Analytics & Monitoring**: PostHog funnel tracking + Sentry error capture
 - [x] **Feedback Collection**: Supabase-backed feedback widget
 - [x] **Mobile Responsive**: Tested across desktop and mobile
-- [x] **37 Contract Tests**: Full test suite covering all core functions
+- [x] **42 Contract Tests**: Full test suite covering all core functions + regression for WasmVm contribution bug
