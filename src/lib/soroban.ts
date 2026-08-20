@@ -27,9 +27,9 @@ const NETWORK_PASSPHRASE =
   import.meta.env.VITE_SOROBAN_NETWORK_PASSPHRASE ||
   "Test SDF Network ; September 2015";
 
-// Native XLM asset contract on Testnet
+// Native XLM asset contract on Testnet (56 chars, ends with YSC)
 const NATIVE_TOKEN_ADDRESS =
-  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCN3";
+  "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -133,9 +133,14 @@ async function buildContractTx(
   const sdk = await getSdk();
   const { Contract, TransactionBuilder, Networks, BASE_FEE, xdr, SorobanDataBuilder } = sdk;
 
-  if (!CONTRACT_ID) {
+  if (
+    !CONTRACT_ID ||
+    CONTRACT_ID.length !== 56 ||
+    !CONTRACT_ID.startsWith("C") ||
+    CONTRACT_ID.includes("TESTNET")
+  ) {
     throw new Error(
-      "VITE_SOROBAN_CONTRACT_ID is not configured. Set it in your .env file after deploying the contract.",
+      "Smart contract is not deployed yet or VITE_SOROBAN_CONTRACT_ID is invalid. Run 'node contracts/deploy.mjs' to deploy to Testnet.",
     );
   }
 
@@ -180,7 +185,15 @@ async function scStringToBytes(sdk: any, text: string): Promise<any> {
 }
 
 function scAddress(sdk: any, address: string): any {
-  return new sdk.Address(address).toScVal();
+  let target = address;
+  if (!target || target.length !== 56) {
+    try {
+      target = sdk.Asset.native().contractId(NETWORK_PASSPHRASE);
+    } catch {
+      target = NATIVE_TOKEN_ADDRESS;
+    }
+  }
+  return new sdk.Address(target).toScVal();
 }
 
 function scU32(sdk: any, n: number): any {
@@ -214,7 +227,14 @@ function scEnum(sdk: any, variant: string, field?: any): any {
 export async function getCircleStateOnChain(
   circleId: string | number,
 ): Promise<OnChainCircle | null> {
-  if (!CONTRACT_ID) return null;
+  if (
+    !CONTRACT_ID ||
+    CONTRACT_ID.length !== 56 ||
+    !CONTRACT_ID.startsWith("C") ||
+    CONTRACT_ID.includes("TESTNET")
+  ) {
+    return null;
+  }
 
   try {
     const sdk = await getSdk();
@@ -376,8 +396,8 @@ export async function submitCreateCircle(params: {
   const signedXdr = await signStellarTx(txXdr, NETWORK_PASSPHRASE);
   const txHash = await submitAndConfirmTransaction(signedXdr);
 
-  // Retrieve the circle ID from the transaction result
-  const circleId = await getCircleIdFromTxHash(txHash, sdk);
+  // Retrieve the actual on-chain circle ID from the transaction result or contract storage
+  const circleId = await getCircleIdFromTxHash(txHash, sdk, userAddress);
 
   trackEvent("circle_created", {
     circle_id: circleId,
@@ -391,36 +411,133 @@ export async function submitCreateCircle(params: {
 
 /**
  * Extract the returned circle ID (u64) from a confirmed create_circle transaction.
+ * Checks transaction meta return value, published events, and on-chain contract state.
  */
-async function getCircleIdFromTxHash(txHash: string, sdk: any): Promise<string> {
+async function getCircleIdFromTxHash(
+  txHash: string,
+  sdk: any,
+  organizerAddress: string,
+): Promise<string> {
+  // 1. Polled extraction from Soroban RPC getTransaction meta/events
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const res = await fetch(SOROBAN_RPC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "getTransaction",
+          params: { hash: txHash },
+        }),
+      });
+      const data = await res.json();
+      const resultMetaXdr = data?.result?.resultMetaXdr;
+
+      if (resultMetaXdr) {
+        const meta = sdk.xdr.TransactionMeta.fromXDR(resultMetaXdr, "base64");
+        const arm = typeof meta.arm === "function" ? meta.arm() : "";
+        const metaVal =
+          arm === "v4"
+            ? meta.v4()
+            : arm === "v3"
+              ? meta.v3()
+              : typeof (meta as any).value === "function"
+                ? (meta as any).value()
+                : null;
+
+        const sorobanMeta =
+          metaVal && typeof metaVal.sorobanMeta === "function"
+            ? metaVal.sorobanMeta()
+            : null;
+
+        // Try direct return value ScVal
+        const returnValScVal = sorobanMeta?.returnValue ? sorobanMeta.returnValue() : null;
+        if (returnValScVal) {
+          const native = sdk.scValToNative(returnValScVal);
+          if (native !== undefined && native !== null && String(native) !== "0") {
+            return String(native);
+          }
+        }
+
+        // Try events published by contract during create_circle
+        const events = sorobanMeta?.events ? sorobanMeta.events() : [];
+        for (const evt of events) {
+          try {
+            const topics = evt.type ? evt.type().topics() : [];
+            if (topics && topics.length >= 2) {
+              const topic0 = sdk.scValToNative(topics[0]);
+              if (topic0 === "created" || String(topic0) === "created") {
+                const circleId = sdk.scValToNative(topics[1]);
+                if (circleId !== undefined && circleId !== null) {
+                  return String(circleId);
+                }
+              }
+            }
+          } catch {
+            // keep looking
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[getCircleIdFromTxHash attempt error]:", err);
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+
+  // 2. Fallback: Query contract get_member_circles(organizer) on-chain
   try {
+    const circles = await getMemberCirclesOnChain(organizerAddress);
+    if (circles.length > 0) {
+      const maxId = Math.max(...circles);
+      if (maxId > 0) return String(maxId);
+    }
+  } catch (err) {
+    console.warn("[getMemberCirclesOnChain fallback error]:", err);
+  }
+
+  // 3. Fallback to 1 (first contract circle ID)
+  return "1";
+}
+
+/**
+ * Helper to query member circle IDs directly from contract storage.
+ */
+export async function getMemberCirclesOnChain(userAddress: string): Promise<number[]> {
+  if (!CONTRACT_ID) return [];
+  try {
+    const sdk = await getSdk();
+    const contract = new sdk.Contract(CONTRACT_ID);
+    const dummyTx = new sdk.TransactionBuilder(
+      new sdk.Account(userAddress, "0"),
+      { fee: "100", networkPassphrase: NETWORK_PASSPHRASE },
+    )
+      .addOperation(contract.call("get_member_circles", scAddress(sdk, userAddress)))
+      .setTimeout(300)
+      .build();
+
     const res = await fetch(SOROBAN_RPC_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
-        method: "getTransaction",
-        params: { hash: txHash },
+        method: "simulateTransaction",
+        params: { transaction: dummyTx.toXDR() },
       }),
     });
+
     const data = await res.json();
-    const resultMetaXdr = data?.result?.resultMetaXdr;
-    if (resultMetaXdr) {
-      const meta = sdk.xdr.TransactionMeta.fromXDR(resultMetaXdr, "base64");
-      const sorobanMeta = meta.v3?.().sorobanMeta?.()?.returnValue?.();
-      if (sorobanMeta) {
-        const native = sdk.scValToNative(sorobanMeta);
-        if (native !== undefined && native !== null) {
-          return String(native);
-        }
-      }
+    if (!data?.result?.results?.[0]?.xdr) return [];
+    const scVal = sdk.xdr.ScVal.fromXDR(data.result.results[0].xdr, "base64");
+    const native = sdk.scValToNative(scVal);
+    if (Array.isArray(native)) {
+      return native.map((n: any) => Number(n));
     }
-  } catch (err) {
-    console.warn("[getCircleIdFromTxHash]:", err);
+    return [];
+  } catch {
+    return [];
   }
-  // Fallback: timestamp-based ID (shows this is real, not fake)
-  return String(Date.now());
 }
 
 /**

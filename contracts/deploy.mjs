@@ -21,6 +21,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { createHash } from 'crypto';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -99,8 +100,8 @@ if (simUpload.error) {
   process.exit(1);
 }
 
-const assembledUpload = sdk.SorobanRpc?.assembleTransaction
-  ? sdk.SorobanRpc.assembleTransaction(uploadTx, simUpload).build()
+const assembledUpload = sdk.rpc?.assembleTransaction
+  ? sdk.rpc.assembleTransaction(uploadTx, simUpload).build()
   : uploadTx;
 
 assembledUpload.sign(deployer);
@@ -112,7 +113,9 @@ if (uploadResult.error || uploadResult.status === 'ERROR') {
 }
 
 const wasmHash = await waitForTransaction(uploadResult.hash);
-console.log(`   WASM hash: ${wasmHash.wasmHash || uploadResult.hash}`);
+const wasmHashBytes = createHash('sha256').update(wasm).digest();
+const wasmHashHex = wasmHashBytes.toString('hex');
+console.log(`   WASM hash (SHA-256): ${wasmHashHex}`);
 
 // ─── Deploy contract ───────────────────────────────────────────────────────────
 console.log('\n🚀  Deploying contract...');
@@ -121,17 +124,6 @@ console.log('\n🚀  Deploying contract...');
 const accRes2 = await fetch(`${HORIZON_URL}/accounts/${deployerPub}`);
 const accData2 = await accRes2.json();
 const deployerAccount2 = new Account(deployerPub, accData2.sequence);
-
-// Get wasm hash from upload result
-let wasmHashBytes;
-try {
-  const resultMeta = sdk.xdr.TransactionMeta.fromXDR(wasmHash.resultMetaXdr, 'base64');
-  wasmHashBytes = resultMeta.v3?.().sorobanMeta?.()?.returnValue?.()?.bytes?.();
-} catch {
-  // fallback: use the hash directly
-  console.log('   Using tx hash as wasm hash fallback');
-  wasmHashBytes = Buffer.from(uploadResult.hash, 'hex');
-}
 
 const deployTx = new TransactionBuilder(deployerAccount2, {
   fee: '1000000',
@@ -152,8 +144,8 @@ if (simDeploy.error) {
   process.exit(1);
 }
 
-const assembledDeploy = sdk.SorobanRpc?.assembleTransaction
-  ? sdk.SorobanRpc.assembleTransaction(deployTx, simDeploy).build()
+const assembledDeploy = sdk.rpc?.assembleTransaction
+  ? sdk.rpc.assembleTransaction(deployTx, simDeploy).build()
   : deployTx;
 
 assembledDeploy.sign(deployer);
@@ -166,18 +158,25 @@ if (deployResult.error || deployResult.status === 'ERROR') {
 
 const deployConfirm = await waitForTransaction(deployResult.hash);
 
-// Extract contract ID from return value
+// Extract contract ID from diagnostic events or return value
 let contractId = 'UNKNOWN';
 try {
-  const meta = sdk.xdr.TransactionMeta.fromXDR(deployConfirm.resultMetaXdr, 'base64');
-  const returnVal = meta.v3?.().sorobanMeta?.()?.returnValue?.();
-  if (returnVal) {
-    const addrObj = sdk.Address.fromScVal(returnVal);
-    contractId = addrObj.toString();
+  if (deployConfirm.diagnosticEventsXdr) {
+    for (const evtXdr of deployConfirm.diagnosticEventsXdr) {
+      try {
+        const evt = sdk.xdr.DiagnosticEvent.fromXDR(evtXdr, 'base64');
+        const contractBytes = evt.event().contractId();
+        if (contractBytes) {
+          contractId = sdk.Address.contract(contractBytes).toString();
+          break;
+        }
+      } catch {
+        // continue
+      }
+    }
   }
 } catch (err) {
-  console.warn('   Could not extract contract ID from return value:', err.message);
-  contractId = deployResult.hash; // fallback
+  console.warn('   Could not extract contract ID:', err.message);
 }
 
 // ─── Output ───────────────────────────────────────────────────────────────────
