@@ -1,0 +1,163 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Rotera design tokens.
+ * ink / verdigris / brass / parchment / chalk / rust-signal.
+ * Brass is the accent and is spent only on payout moments and primary CTAs.
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Public Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink: var(--ink);
+  --color-verdigris: var(--verdigris);
+  --color-brass: var(--brass);
+  --color-parchment: var(--parchment);
+  --color-chalk: var(--chalk);
+  --color-rust: var(--rust-signal);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+}
+
+:root {
+  --radius: 0.5rem;
+
+  --ink: #14213d;
+  --verdigris: #2f6e62;
+  --brass: #c9973c;
+  --parchment: #eae3cf;
+  --chalk: #faf8f3;
+  --rust-signal: #b4553b;
+
+  --background: var(--parchment);
+  --foreground: var(--ink);
+  --card: var(--chalk);
+  --card-foreground: var(--ink);
+  --popover: var(--chalk);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--chalk);
+  --secondary: #ded6be;
+  --secondary-foreground: var(--ink);
+  --muted: #e2dbc4;
+  --muted-foreground: #4d5670;
+  --accent: var(--verdigris);
+  --accent-foreground: var(--chalk);
+  --destructive: var(--rust-signal);
+  --destructive-foreground: var(--chalk);
+  --border: #d3caae;
+  --input: #cfc5a7;
+  --ring: var(--verdigris);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    letter-spacing: -0.01em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--verdigris);
+    outline-offset: 2px;
+  }
+}
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+@utility input {
+  width: 100%;
+  min-height: 2.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--input);
+  background-color: var(--chalk);
+  padding: 0.5rem 0.75rem;
+  color: var(--ink);
+}
+
+
+@utility ring-spin {
+  transform-origin: 50% 50%;
+  animation: rotera-spin 90s linear infinite;
+}
+
+@utility seat-pop {
+  animation: rotera-pop 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes rotera-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rotera-pop {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -1,20 +1,44 @@
-/**
- * Rotera — Stellar Network Configuration
- * Handles network selection, Horizon server, and passphrase.
- */
+import freighterApi from '@stellar/freighter-api'
 
-export const STELLAR_CONFIG = {
-  network: import.meta.env.VITE_STELLAR_NETWORK || 'testnet',
-  horizonUrl: import.meta.env.VITE_HORIZON_URL || 'https://horizon-testnet.stellar.org',
-  networkPassphrase: import.meta.env.VITE_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
-  contractId: import.meta.env.VITE_CONTRACT_ID || '',
-} as const
+const { isConnected, getAddress, signTransaction } = freighterApi || {}
 
-export type NetworkType = 'testnet' | 'mainnet'
+export interface WalletState {
+  address: string | null
+  isConnected: boolean
+  isConnecting: boolean
+  error: string | null
+}
 
-/**
- * Check if we're on testnet.
- */
-export function isTestnet(): boolean {
-  return STELLAR_CONFIG.network === 'testnet'
+export async function connectFreighter(): Promise<string> {
+  const checkConnected = isConnected || (freighterApi as any)?.isConnected
+  if (!checkConnected) {
+    throw new Error('Freighter wallet extension is not installed or enabled in your browser.')
+  }
+  const connected = await checkConnected()
+  if (!connected) {
+    throw new Error('Freighter wallet extension is not installed or enabled in your browser.')
+  }
+  const fetchAddress = getAddress || (freighterApi as any)?.getAddress
+  const result = await fetchAddress()
+  if (result?.error) {
+    throw new Error(result.error)
+  }
+  if (!result?.address) {
+    throw new Error('Could not retrieve wallet address from Freighter.')
+  }
+  return result.address
+}
+
+export async function signStellarTx(xdr: string, networkPassphrase?: string): Promise<string> {
+  const signTx = signTransaction || (freighterApi as any)?.signTransaction
+  if (!signTx) {
+    throw new Error('Freighter wallet signing method unavailable.')
+  }
+  const signedXdr = await signTx(xdr, {
+    networkPassphrase: networkPassphrase || 'Test SDF Network ; September 2015',
+  })
+  if (!signedXdr) {
+    throw new Error('Transaction signing was cancelled or rejected.')
+  }
+  return signedXdr
 }

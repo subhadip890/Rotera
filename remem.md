@@ -1,82 +1,65 @@
-# Rotera — Session Memory
+# Rotera — Memory File (remem.md)
 
-## Project
-On-chain rotating savings circle (ROSCA) app on Stellar/Soroban.
-GitHub: https://github.com/subhadip890/Rotera.git
-Local: c:\Users\subha\OneDrive\Apps\Rotera
+## Project Overview
+Rotera is an on-chain rotating savings circle (ROSCA) app on Stellar/Soroban. It replaces the human organizer in informal savings groups (chit funds, susu, tanda, ajo, stokvel) with a smart contract.
+
+## Architecture
+- **Frontend**: TanStack Start (Router + Query + Zustand + Tailwind v4 + Motion)
+- **Smart Contract**: Soroban/Rust at `contracts/rosca/` — built with `create_circle`, `join_circle`, `contribute`, `close_cycle`, `get_status`, `withdraw_deposit`
+- **State**: Zustand (`src/store/useRotera.ts`) for UI state; TanStack Query for chain data
+- **Design tokens**: ink (#14213d) / verdigris (#2f6e62) / brass (#c9973c) / parchment (#eae3cf) / chalk (#faf8f3) / rust-signal (#b4553b)
+- **Fonts**: Fraunces (display), Public Sans (body), IBM Plex Mono (numbers)
 
 ## Current State
-All core frontend + contract work complete. Clean production build.
-
-## Commits pushed (GitHub main branch)
-1. Project scaffold (Vite + React + TypeScript + Tailwind + design tokens)
-2. Wallet connect (Freighter + WalletProvider + ConnectButton + WalletPanel)
-3. Landing page + Roundtable 3D hero (React Three Fiber + Framer Motion)
-4+5. Create Circle flow (3-step form) + Join Circle flow (invite accept)
-6-9. Soroban ROSCA contract (types, errors, full logic, test suite, deploy script)
-10-15. Dashboard, History timeline, Onboarding flow, Feedback widget, lazy routes
-
-## Architecture Summary
-- Vite v8, React 19, TypeScript strict
-- Tailwind CSS v4 (via @tailwindcss/vite)
-- Design system: tokens.css → index.css → Tailwind @theme extension
-- Fonts: Fraunces (display), Public Sans (body), IBM Plex Mono (mono)
-- Pages lazy-loaded for code splitting (Three.js → roundtable chunk ~900KB)
-- WalletProvider wraps entire app, persists address to localStorage
-- Contract types in src/lib/contract.ts (mirrors Soroban types)
-- Demo data factory (createDemoCircle) used until real contract deployed
-
-## Design Tokens
-- --ink: #14213D (primary text)
-- --verdigris: #2F6E62 (structural, active, links)
-- --brass: #C9973C (single accent — payout, primary CTA)
-- --parchment: #EAE3CF (background)
-- --chalk: #FAF8F3 (card surface)
-- --rust-signal: #B4553B (error/late only)
+- Root project uses TanStack Start frontend
+- Smart contract at `contracts/rosca/` — complete with types, errors, tests
+- Contract has: CircleState, MemberState, CycleRecord types; Manual + RandomPending payout order; deposit mechanism (10% holdback); permissionless keeper close_cycle
 
 ## Key Files
-- src/App.tsx — lazy routes, FeedbackWidget always mounted
-- src/pages/Landing.tsx — hero + onboarding trigger
-- src/pages/Dashboard.tsx — live circle state, pay CTA
-- src/pages/CreateCircle.tsx — 3-step form
-- src/pages/JoinCircle.tsx — invite accept + agreement
-- src/pages/History.tsx — cycle timeline + reliability bars
-- src/components/wallet/WalletProvider.tsx — Freighter connect
-- src/components/roundtable/RoundtableCanvas.tsx — 3D + SVG fallback
-- src/components/onboarding/OnboardingFlow.tsx — 4-step onboarding
-- src/components/feedback/FeedbackWidget.tsx — floating star rating
-- src/lib/contract.ts — contract types + demo data factory
-- contracts/rosca/src/lib.rs — full Soroban contract
-- contracts/deploy.sh — testnet deploy script
+- `src/routes/__root.tsx` — RootShell + RootComponent with QueryClientProvider, SiteHeader, SiteFooter, FeedbackWidget
+- `src/routes/index.tsx` — Landing page with hero Roundtable + 3-step explainer
+- `src/routes/create.tsx` — Circle creation form + live Roundtable preview + invite link
+- `src/routes/join.tsx` — Invite acceptance + agreement summary
+- `src/routes/circle.tsx` — Dashboard: live Roundtable, countdown, pay/close, payout modal
+- `src/routes/history.tsx` — Payout timeline
+- `src/components/SiteChrome.tsx` — Header/footer (footer contract address read from env)
+- `src/components/roundtable/Roundtable.tsx` — SVG+Motion rotating seat ring
+- `src/components/wallet/WalletButton.tsx` — Wallet connect/disconnect
+- `src/components/feedback/FeedbackWidget.tsx` — Rating + note (persisted to Supabase)
+- `src/components/onboarding/Onboarding.tsx` — 4-step skippable modal
+- `src/store/useRotera.ts` — Zustand store
+- `src/lib/rotera.ts` — Domain types, helpers, demo data
+- `src/router.tsx` — TanStack Router + QueryClient
+- `src/start.ts` — TanStack Start middleware
+- `src/server.ts` — SSR error wrapper
+- `src/styles.css` — Design tokens + utilities
 
-## What still needs doing (for Green Belt submission)
-1. **Deploy contract to testnet** — run contracts/deploy.sh (needs Stellar CLI)
-   - Write real contract ID to .env → VITE_CONTRACT_ID=C...
-2. **Wire contract client** — replace demo data in Dashboard/JoinCircle with
-   real Soroban reads once contract is deployed
-3. **PostHog analytics** — add VITE_POSTHOG_KEY to .env, initialize in main.tsx
-4. **Sentry monitoring** — add VITE_SENTRY_DSN to .env, initialize in main.tsx
-5. **Supabase feedback** — create feedback table, add env vars
-6. **Collect 10+ user feedback** — share with real users
+## Integrations Active
+1. `useRotera.connect()` — real Freighter wallet connection with persistence
+2. `FeedbackWidget.tsx` — Supabase persistence + PostHog event tracking
+3. `SiteFooter` contract address — dynamically derived from env config
+4. `Sentry` — initialization & exception capture in root component
 
-## Known Issues
-- Three.js chunk is 903KB (gzipped 240KB) — normal for R3F, lazy-loaded
-- Contract not yet deployed (demo data used everywhere)
-- Freighter extension required for wallet connect (no fallback)
+## Smart Contract (contracts/rosca/)
+- `create_circle(organizer, name, contribution_amount, cycle_length_days, members, payout_order)`
+- `join_circle(member, circle_id)` — marks deposit paid, activates when all joined
+- `contribute(member, circle_id)` — records contribution for current cycle
+- `close_cycle(circle_id)` — permissionless keeper, tracks missed payments as debt
+- `get_status(circle_id)` — returns full CircleState
+- `withdraw_deposit(member, circle_id)` — after completion, if no debt
+- Types: CircleState, MemberState, CycleRecord, CircleStatus, PayoutOrderType
 
-## Env Vars Needed
-```
-VITE_STELLAR_NETWORK=testnet
-VITE_CONTRACT_ID=<deployed contract address>
-VITE_HORIZON_URL=https://horizon-testnet.stellar.org
-VITE_POSTHOG_KEY=<posthog project api key>
-VITE_POSTHOG_HOST=https://us.i.posthog.com
-VITE_SENTRY_DSN=<sentry dsn>
-VITE_SUPABASE_URL=<supabase project url>
-VITE_SUPABASE_ANON_KEY=<supabase anon key>
-```
+## Environment Variables Needed
+- `VITE_SOROBAN_CONTRACT_ID` — deployed contract address
+- `VITE_SOROBAN_RPC_URL` — Stellar testnet RPC
+- `VITE_SOROBAN_NETWORK_PASSPHRASE` — testnet passphrase
+- `VITE_POSTHOG_KEY` — PostHog project key
+- `VITE_SENTRY_DSN` — Sentry DSN
+- `VITE_SUPABASE_URL` — Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` — Supabase anon key
 
-## PowerShell Notes
-- Use `;` not `&&` to chain commands
-- Quote packages with `@` scope: npm install "@creit.tech/stellar-wallets-kit"
-- manualChunks as object not supported in Vite v8/rolldown — use limit only
+## Git Remote
+- Push to: https://github.com/subhadip890/Rotera.git
+- Use conventional commits: `feat:`, `fix:`, `docs:`, `test:`
+- Need 15+ meaningful commits
+- Do NOT force-push or rebase existing history

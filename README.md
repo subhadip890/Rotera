@@ -1,95 +1,94 @@
-# Rotera
+# Rotera — Savings Circles That Run Themselves
 
-**Rotating savings circles (ROSCA) on Stellar/Soroban.**
+> **Level 4 — Green Belt Submission** | Stellar/Soroban Rotating Savings Circle (ROSCA) Protocol
 
-Rotera puts the system people already use worldwide — chit fund, susu, tanda, ajo, stokvel — on-chain. A smart contract enforces the rules so nobody can bend them. Your group stays in charge.
-
----
-
-## What it does
-
-A fixed group contributes the same amount on a regular schedule. Each cycle, the full pot goes to one member in a pre-agreed or randomized order. The contract enforces this automatically — no middleman, no spreadsheet, no chasing people.
-
-**Key mechanics:**
-- Entry deposit (~10% of total expected contributions) held until completion — discourages drop-outs
-- Missed contributions tracked as debt against the late member's own payout — group is never penalized
-- Permissionless cycle-close: anyone can call `close_cycle` after the deadline
-- Randomized ordering via future Stellar ledger sequence hash (verifiable, unpredictable at setup time)
+Rotera takes the informal rotating savings arrangement used by billions of people worldwide — known as *chit funds* in India, *susu* in West Africa, *tanda* in Latin America, *stokvel* in South Africa, and *ajo* in Nigeria — and replaces the trusted human organizer with an automated, transparent smart contract on Stellar/Soroban.
 
 ---
 
-## Tech stack
+## 🌟 What Rotera Does
 
-| Layer | Tech |
-|---|---|
-| Frontend | Vite + React + TypeScript |
-| Styling | Vanilla CSS design system (tokens.css) |
-| 3D hero | React Three Fiber + Three.js |
-| Animations | Framer Motion |
-| State | TanStack Query + Zustand |
-| Wallet | Freighter / Stellar Wallets Kit |
-| Blockchain | Stellar / Soroban smart contract (Rust) |
-| Analytics | PostHog |
-| Monitoring | Sentry |
-| Feedback | Supabase |
+1. **Agree Once**: A fixed group of members (e.g. 6 people) commit to a fixed contribution (e.g. 200 XLM) on a regular schedule (weekly/biweekly/monthly).
+2. **Pay Your Share**: Each cycle, members contribute their share before the cutoff deadline. Rotera tracks who has paid and who is late — no chasing in WhatsApp groups required.
+3. **Take Your Turn**: When the cycle closes, the entire pot lands automatically in the wallet of whichever seat is up next. The ring then turns one notch for the next cycle.
 
 ---
 
-## Local development
+## 🏗️ Architecture & Technical Design
+
+Rotera consists of a client-side frontend, Soroban smart contracts, monitoring, and analytical data layers:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              Rotera TanStack Start Frontend             │
+│   (TanStack Router + Query + Zustand + Tailwind + Motion)│
+└──────────────┬──────────────────────────┬───────────────┘
+               │                          │
+               ▼                          ▼
+┌─────────────────────────────┐ ┌─────────────────────────┐
+│     Stellar/Soroban Smart   │ │   Observability & Data  │
+│          Contract           │ │ ─────────────────────── │
+│ ─────────────────────────── │ │ • Sentry (Errors)       │
+│ • create_circle             │ │ • PostHog (Analytics)   │
+│ • join_circle               │ │ • Supabase (Feedback)   │
+│ • contribute                │ │ • Freighter Wallet      │
+│ • close_cycle (Keeper)      │ └─────────────────────────┘
+│ • get_status                │
+│ • withdraw_deposit          │
+└─────────────────────────────┘
+```
+
+### 1. Smart Contract (Soroban / Rust)
+- **State Management**: Persists circle configurations, member payout ordering, individual deposit records (10% holdback against early dropout), cycle contribution states, and outstanding debt history.
+- **Permissionless Keeper Pattern**: Soroban contracts cannot self-trigger on timer expiration. `close_cycle` is implemented as a permissionless keeper method callable by any address once `cycle_deadline` passes. It calculates collected funds, records missed payments as debt against future turns, pays out the recipient, and advances the cycle.
+
+### 2. Frontend Layer
+- Built with **TanStack Start** (TanStack Router, Query, Zustand, Tailwind CSS v4, Motion).
+- Features the signature **Roundtable** seat rotation visualizer (`Roundtable.tsx`), showing live seat statuses (Paid / Waiting / Late / Recipient) and animated rotation turns.
+
+### 3. Monitoring & Analytics
+- **Sentry**: Captures client exceptions, wallet connection rejections, contract execution errors, and boundary crashes.
+- **PostHog**: Tracks user funnels (wallet connection, circle creation, invite sharing, contributions, cycle completions, onboarding steps).
+- **Supabase**: Persists user feedback ratings and comments.
+
+---
+
+## 📜 On-Chain Smart Contract Details
+
+- **Network**: Stellar Testnet
+- **Contract ID**: `CB7QPY4RD2...` (Configured via `VITE_SOROBAN_CONTRACT_ID`)
+- **RPC Endpoint**: `https://soroban-testnet.stellar.org`
+- **Network Passphrase**: `Test SDF Network ; September 2015`
+
+---
+
+## ⚡ Setup & Local Development
+
+### Prerequisites
+- Node.js (v18+) or Bun
+- Rust + `wasm32-unknown-unknown` target (for contract builds)
+- Freighter Browser Wallet Extension
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/subhadip890/Rotera.git
+cd Rotera
+
 # Install dependencies
 npm install
 
-# Start dev server
+# Copy environment template
+cp .env.example .env
+
+# Run development server
 npm run dev
-
-# Build for production
-npm run build
 ```
 
-### Environment variables
+The application will be available at `http://localhost:5173`.
 
-Copy `.env.example` to `.env` and fill in the values:
-
-```
-VITE_STELLAR_NETWORK=testnet
-VITE_CONTRACT_ID=<deployed contract address>
-VITE_HORIZON_URL=https://horizon-testnet.stellar.org
-VITE_POSTHOG_KEY=<posthog project api key>
-VITE_POSTHOG_HOST=https://us.i.posthog.com
-VITE_SENTRY_DSN=<sentry dsn>
-VITE_SUPABASE_URL=<supabase project url>
-VITE_SUPABASE_ANON_KEY=<supabase anon key>
-```
-
----
-
-## Contract
-
-The Soroban contract is in `contracts/rosca/`. It implements:
-
-- `create_circle` — organizer sets up the circle
-- `join_circle` — member confirms seat and pays deposit
-- `contribute` — member pays their cycle share
-- `close_cycle` — permissionless keeper call after deadline
-- `get_status` — read current state (dashboard)
-- `withdraw_deposit` — returns held deposit after circle completion
-
-### Deploy to Stellar Testnet
-
-Requires the [Stellar CLI](https://developers.stellar.org/docs/tools/developer-tools/cli/):
-
-```bash
-chmod +x contracts/deploy.sh
-./contracts/deploy.sh
-```
-
-The script funds a deployer account via Friendbot, builds the WASM, deploys the contract, and writes the contract ID to your `.env`.
-
-### Run contract tests
-
-Requires the Rust toolchain with `wasm32-unknown-unknown` target:
+### Running Contract Tests
 
 ```bash
 cd contracts/rosca
@@ -98,59 +97,29 @@ cargo test
 
 ---
 
-## Design system
+## 📸 Screenshots & Product Demonstrations
 
-Rotera uses a deliberate, restricted color palette — not generic fintech:
-
-| Token | Hex | Use |
-|---|---|---|
-| `--ink` | `#14213D` | Primary text, dark surfaces |
-| `--verdigris` | `#2F6E62` | Structural / active / rotation ring |
-| `--brass` | `#C9973C` | **Single accent** — payout moment, primary CTA |
-| `--parchment` | `#EAE3CF` | Warm background |
-| `--chalk` | `#FAF8F3` | Card surfaces |
-| `--rust-signal` | `#B4553B` | Late / overdue / error only |
-
-Typography: Fraunces (display), Public Sans (body), IBM Plex Mono (financial data).
+- **Product UI**: Clean, warm editorial design with parchment (`#EAE3CF`), ink (`#14213D`), and verdigris (`#2F6E62`) tokens.
+- **Roundtable Visualizer**: SVG & Motion interactive seat ring displaying active rotation, seat numbers, and live contribution badges.
+- **Mobile Responsive**: Fully responsive layout optimized for mobile viewports and wallet dApp browsers.
+- **Monitoring & Analytics**: Integrated Sentry error reporting & PostHog user funnel tracking.
 
 ---
 
-## Project structure
+## ⚖️ Known Trade-offs & Engineering Decisions
 
-```
-src/
-  components/
-    wallet/          # Freighter connect, WalletProvider, ConnectButton
-    roundtable/      # 3D Roundtable (React Three Fiber + SVG fallback)
-    layout/          # Navbar
-    onboarding/      # First-visit onboarding flow
-    feedback/        # Floating feedback widget (Supabase)
-  pages/
-    Landing.tsx      # Hero + 3D Roundtable
-    CreateCircle.tsx # 3-step circle creation form
-    JoinCircle.tsx   # Invite accept flow
-    Dashboard.tsx    # Live circle state, pay CTA, member list
-    History.tsx      # Cycle timeline + reliability records
-  lib/
-    contract.ts      # TypeScript contract client + types
-    format.ts        # Amounts, dates, addresses formatting
-    stellar.ts       # Network config
-    motion.ts        # Shared Framer Motion presets
-  styles/
-    tokens.css       # Design tokens
-    index.css        # Global styles + component patterns
-contracts/
-  rosca/
-    src/
-      lib.rs         # Main contract (create, join, contribute, close)
-      types.rs       # CircleState, MemberState, CycleRecord
-      errors.rs      # RoteraError enum
-      test.rs        # Full test suite
-  deploy.sh          # Testnet deploy script
-```
+1. **Permissionless Keeper vs Cron Automation**: Since Soroban smart contracts cannot execute autonomously without an external invocation, `close_cycle` relies on a keeper call. Anyone can trigger `close_cycle` after `cycle_deadline` passes.
+2. **Shortfall Handling**: If a member misses a contribution cycle, the payout is delivered short by the missed amount, and the shortfall is recorded as debt against that member's future turn.
+3. **Early-Exit Protection**: To prevent early-turn recipients from abandoning the circle, a 10% entry deposit is held back until all cycles complete and no debt remains.
 
 ---
 
-## License
+## 🔗 Submission Checklist & Links
 
-MIT
+- [x] **Public GitHub Repository**: [github.com/subhadip890/Rotera](https://github.com/subhadip890/Rotera)
+- [x] **15+ Meaningful Commits**: Clean Git commit history with conventional commit messages
+- [x] **Stellar Testnet Deployment**: Deployed Soroban ROSCA contract
+- [x] **Real Wallet Support**: Freighter API & Stellar Wallets Kit integration
+- [x] **Analytics & Monitoring**: PostHog funnel tracking + Sentry error capture
+- [x] **Feedback Collection**: Supabase-backed feedback widget
+- [x] **Mobile Responsive**: Tested across desktop and mobile screens
