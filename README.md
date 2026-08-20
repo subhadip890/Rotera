@@ -86,6 +86,8 @@ Rotera was validated through real on-chain testing and user feedback on Stellar 
 </p>
 <p align="center"><em>Contract-scoped audit records showing Stellar Testnet lifecycle events, wallet addresses, transaction hashes, amounts, and timestamps.</em></p>
 
+> 📊 **Verify the raw data yourself**: [`supabase_circle_events_export.csv`](https://github.com/subhadip890/Rotera/blob/main/docs/evidence/supabase_circle_events_export.csv) — GitHub renders this as a searchable spreadsheet table (50 rows, 12 unique wallets, all event types, amounts, and tx hashes).
+
 ### Matched Tester Evidence
 
 | Tester | Wallet Address | Verified Activity | Representative Transaction Hash | Rating |
@@ -106,6 +108,8 @@ Rotera was validated through real on-chain testing and user feedback on Stellar 
 <p align="center">
   <img src="docs/evidence/supabase-feedback-real-users.png" width="95%" alt="Supabase Real User Feedback Submissions" />
 </p>
+
+> 📊 **Verify the raw data yourself**: [`supabase_feedback_export.csv`](https://github.com/subhadip890/Rotera/blob/main/docs/evidence/supabase_feedback_export.csv) — GitHub renders this as a spreadsheet table (12 submissions, wallet addresses, ratings, and full comment text).
 
 #### What Testers Liked
 - **Transparent Payout Sequence**: Clear visualization of whose turn is active and how the pot rotates.
@@ -150,6 +154,40 @@ Representative on-chain transactions confirmed on Stellar Testnet contract `CDPL
 | **Deployment** | Vercel (Nitro Node SSR) | Production web hosting (`rotera-seven.vercel.app`) |
 
 > **Authoritative State Note**: The Stellar Soroban smart contract is the sole authoritative source of truth for all circle state, member balances, and payouts. Supabase is used strictly for supplemental product history and user feedback.
+
+---
+
+## Monitoring & Analytics Integration
+
+### Error Monitoring — Sentry (`src/lib/sentry.ts`)
+
+Sentry is integrated via `@sentry/react` with browser tracing and session replay. It filters benign user cancellations (wallet rejections, modal dismissals) and captures all unhandled contract and RPC errors:
+
+```typescript
+Sentry.init({
+  dsn: SENTRY_DSN,
+  integrations: [Sentry.browserTracingIntegration(), Sentry.replayIntegration()],
+  tracesSampleRate: 1.0,
+  replaysOnErrorSampleRate: 1.0,
+});
+```
+
+### Product Analytics — PostHog (`src/lib/posthog.ts`)
+
+PostHog tracks key lifecycle events with a validated key guard that prevents fake/placeholder keys from making network requests:
+
+```typescript
+// Events tracked across the full ROSCA lifecycle:
+trackEvent('wallet_connected')
+trackEvent('circle_created')
+trackEvent('circle_joined')
+trackEvent('contribution_confirmed')
+trackEvent('cycle_closed')
+trackEvent('debt_repaid')
+trackEvent('feedback_submitted')
+```
+
+Both integrations are configured via environment variables (`VITE_SENTRY_DSN`, `VITE_POSTHOG_KEY`) and are safely no-ops when keys are absent, preventing false telemetry in development.
 
 ---
 
