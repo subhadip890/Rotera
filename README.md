@@ -112,7 +112,7 @@ The core ROSCA logic is implemented in Rust (`contracts/rosca/src/lib.rs`) on St
 
 ## Stellar Testnet Contracts
 
-### Current Verified Contract (Active & Green Belt Certified)
+### Current Verified Testnet Contract — Green Belt Submission
 - **Network**: Stellar Testnet
 - **Contract ID**: `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`
 - **RPC Endpoint**: `https://soroban-testnet.stellar.org`
@@ -275,16 +275,40 @@ Test suite coverage includes:
 ## Deployment
 
 - **Smart Contract**: Deployed and active on Stellar Testnet (`CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`, legacy: `CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`).
-- **Frontend**: Single-page application built with TanStack Start/Vite, deployable to Cloudflare Pages, Vercel, or Netlify.
+- **Production Deployment**: [https://rotera-seven.vercel.app/](https://rotera-seven.vercel.app/)
+- **Hosting Provider**: Vercel (Nitro Node SSR Engine)
+- **Deployment Branch**: `main`
+
+---
+
+## Stellar Level 4 — Green Belt Evidence
+
+Rotera fulfills all mandatory requirements for the Stellar Level 4 Green Belt certification:
+
+- **Public GitHub Repository**: [https://github.com/subhadip890/Rotera.git](https://github.com/subhadip890/Rotera.git) (`main` branch)
+- **Live Production App**: [https://rotera-seven.vercel.app/](https://rotera-seven.vercel.app/) (Vercel SSR)
+- **Verified Testnet Contract**: [`CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`](https://stellar.expert/explorer/testnet/contract/CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ)
+- **Smart Contract Test Suite**: 47 automated Cargo unit tests passing (`47 passed; 0 failed`)
+- **Commit History**: 39+ clean, professional engineering commits
+- **10+ Real User Onboarding Proof**: 12 unique on-chain transaction wallets, 10 matched testers with verified feedback and 50 confirmed Testnet transactions
+- **User Feedback Collection**: 12 verified feedback submissions (average rating: 4.92 / 5.0) stored in Supabase
+- **Mobile Responsive Design**: Fully responsive layout verified on 375px mobile viewports
+- **Observability & Telemetry**: Integrated Sentry error monitoring, PostHog analytics, and contract-scoped Supabase audit logs
+- **Detailed Evidence Document**: Complete submission dossier with transaction links, tester feedback tables, and screenshot proofs in [`docs/GREEN_BELT_SUBMISSION.md`](./docs/GREEN_BELT_SUBMISSION.md)
 
 ---
 
 ## Green Belt Submission Checklist
 
 - [x] **Public GitHub Repository**: Clean codebase with complete documentation and commit history
-- [x] **Working Stellar Testnet Contract**: Deployed and functional on Stellar Testnet
+- [x] **Working Stellar Testnet Contract**: Deployed and functional on Stellar Testnet (`CDPLF2...Q7TJ`)
+- [x] **Production Deployment**: Live on Vercel at `https://rotera-seven.vercel.app/`
 - [x] **Freighter Wallet Integration**: Seamless on-chain signing for creation, joining, payments, and settlements
 - [x] **Smart Contract Test Suite**: 47 automated tests covering all core and edge cases
 - [x] **Automated CI Workflow**: GitHub Actions verifying TypeScript, ESLint, production build, and contract tests
-- [x] **Observability & Analytics**: Integrated Sentry error capture, PostHog telemetry, and Supabase (Feedback + Audit Events)
-- [x] **Mobile Responsive Design**: Modern UI designed for both desktop and mobile browsers
+- [x] **Proof of 10+ Real User Wallet Interactions**: 12 unique transaction wallets with 50 confirmed transactions
+- [x] **User Feedback Collection & Summary**: 12 feedback submissions (4.92/5.0) with documented feedback iterations
+- [x] **Observability & Analytics**: Integrated Sentry error capture, PostHog telemetry, and Supabase audit logging
+- [x] **Product UI Screenshots**: Desktop, mobile, and database screenshots preserved in `docs/screenshots/` and `docs/evidence/`
+- [x] **Mobile Responsive Design**: Modern UI designed and verified across desktop and mobile viewports
+- [ ] **Live Demo Video Link**: Final 3–5 minute walkthrough video *(User to record and add URL)*

@@ -1,233 +1,336 @@
-# ROTera — Stellar Green Belt (Level 4) Submission Evidence
+# ROTera — Stellar Level 4 Green Belt Submission Evidence
 
-This document compiles the submission evidence, technical verification, on-chain proof, and operational checklists required for the **Stellar Green Belt (Level 4)** certification.
+> **Decentralized Rotating Savings and Credit Associations (ROSCAs) powered natively by Stellar Soroban.**
+
+This document compiles the verified technical evidence, smart contract proofs, real user validation, on-chain transaction hashes, feedback telemetry, and operational checklists required for the **Stellar Level 4 Green Belt** certification.
 
 ---
 
-## 1. Public GitHub Repository
+## 1. Project Overview
 
-- **Repository**: [https://github.com/subhadip890/Rotera.git](https://github.com/subhadip890/Rotera.git)
+Rotera is a production-ready Web3 decentralized rotating savings protocol (known globally as *chit funds*, *susu*, *tanda*, *stokvel*, or *ajo*). It replaces trusted human middlemen with non-custodial Soroban smart contracts on Stellar.
+
+- **Primary Repository**: [https://github.com/subhadip890/Rotera.git](https://github.com/subhadip890/Rotera.git)
+- **Live Production App**: [https://rotera-seven.vercel.app/](https://rotera-seven.vercel.app/)
+- **Target Network**: Stellar Testnet
+- **Contract Language**: Rust (Soroban SDK)
+- **Frontend Stack**: TanStack Start (React 19, TypeScript, TanStack Query, Tailwind CSS, Motion)
+
+---
+
+## 2. Problem
+
+Informal rotating savings groups pool billions of dollars worldwide to provide unbanked and underbanked communities with lump-sum capital without bank gatekeepers. However, traditional ROSCAs suffer from severe structural failure modes:
+1. **Organizer Risk**: Human coordinators can miscalculate ledger balances, misappropriate pool funds, or abscond entirely.
+2. **Default / Early-Exit Risk**: Members who receive payouts in early cycles frequently stop contributing in subsequent cycles, leaving later members at a net loss.
+3. **Coordination & Dispute Friction**: Chasing unpaid contributions across messaging groups and manually verifying bank transfers creates continuous social tension.
+
+---
+
+## 3. Solution
+
+Rotera formalizes community savings into transparent, automated on-chain peer circles:
+- **Contract-Enforced Accounting & Permissionless Payout Execution**: Smart contracts tally all payments and enforce turn rotation on-chain. Once a cycle deadline passes, `close_cycle` is permissionless — callable by any participant or keeper wallet.
+- **Collateralized Entry Deposit (10%)**: Every member locks a 10% entry deposit upon joining. The deposit remains strictly locked in the contract until the entire rotation completes and the member's outstanding debt is zero.
+- **On-Chain Debt Tracking**: Missed contributions are recorded directly in contract storage as explicit on-chain debt, reducing payout shortfalls transparently and enabling members to repay their balance anytime via `repay_debt()`.
+- **Non-Custodial Self-Sovereignty**: Users authenticate exclusively via their Freighter wallet; Rotera never touches or stores private keys or custody of funds.
+
+---
+
+## 4. Production Architecture
+
+```
++---------------------------------------------------------------------------------+
+|                         Rotera TanStack Start Frontend                          |
+|             (React 19 + TypeScript + TanStack Query + Tailwind CSS)             |
++---------------------------------------------------------------------------------+
+                         |                                 |
+                         v                                 v
++----------------------------------+     +----------------------------------------+
+|      Stellar Soroban Smart       |     |          Telemetry & Feedback          |
+|       Contract (On-Chain)        |     | -------------------------------------- |
+| -------------------------------- |     | • Supabase (Feedback & Audit Events)   |
+| • create_circle                  |     | • PostHog (Product Analytics)          |
+| • join_circle                    |     | • Sentry (Production Error Tracking)   |
+| • contribute                     |     | • Freighter Wallet Extension API       |
+| • close_cycle (Permissionless)   |     +----------------------------------------+
+| • repay_debt                     |
+| • withdraw_deposit               |
+| • get_status / get_circle        |
++----------------------------------+
+```
+
+- **Authoritative Financial State**: Enforced 100% on-chain by the Stellar Soroban contract.
+- **Client Cache**: TanStack Query acts as the sole client-side state cache for on-chain queries.
+- **Supplemental Product Data**: Supabase PostgreSQL stores user feedback submissions and contract-scoped circle event audit logs.
+
+---
+
+## 5. Live Deployment
+
+- **Production URL**: [https://rotera-seven.vercel.app/](https://rotera-seven.vercel.app/)
+- **Deployment Platform**: Vercel (Nitro Node SSR Engine)
+- **Deployment Branch**: `main` (auto-deploy enabled on push)
+- **Verification Status**: ✅ Live & Functional
+
+---
+
+## 6. Public Repository
+
+- **GitHub URL**: [https://github.com/subhadip890/Rotera.git](https://github.com/subhadip890/Rotera.git)
 - **Default Branch**: `main`
 - **License**: MIT
-- **Automated Verification Command**: `npm run verify` (runs typecheck, lint, build, and all 47 Soroban contract tests)
-- **CI Workflow**: `.github/workflows/ci.yml`
+- **Meaningful Commits**: **39+ clean commits** (requirement: 15+ commits)
+- **CI Pipeline**: Automated GitHub Actions verification (`.github/workflows/ci.yml`)
 
 ---
 
-## 2. Live Production Deployment
+## 7. Stellar Testnet Contract
 
-- **Live URL**: [https://rotera.app](https://rotera.app) *(or your live deployment URL on Vercel/Cloudflare)*
-- **Frontend Framework**: Vite + React + TanStack Router (SSR + Client)
-- **Styling**: Vanilla Tailwind CSS with custom design system
-- **Wallet Connection**: Freighter Wallet SDK (`@stellar/freighter-api`)
-- **Smart Contract Client**: `@stellar/stellar-sdk` Soroban RPC Client
-
----
-
-## 3. Deployed Soroban Contracts
-
-### Current Verified Green Belt Testnet Contract (Active)
+### Verified Production Contract (Green Belt Submission)
+- **Contract ID**: [`CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`](https://stellar.expert/explorer/testnet/contract/CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ)
 - **Network**: Stellar Testnet (`https://soroban-testnet.stellar.org`)
 - **Network Passphrase**: `Test SDF Network ; September 2015`
-- **Contract ID**: [`CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`](https://stellar.expert/explorer/testnet/contract/CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ)
-- **Native SAC ID**: [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)
+- **Native XLM SAC Address**: [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC)
 - **Contract Source**: [`contracts/rosca/src/lib.rs`](../contracts/rosca/src/lib.rs)
-- **Status**: Production Verified — all lifecycle functions including `repay_debt`, security collateral, turn-based collection, and keeper cycle closures are deployed and verified on-chain.
 
-### Legacy Development Contract (Archived)
+### Legacy Historical Contract (Archived Development)
 - **Contract ID**: [`CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4`](https://stellar.expert/explorer/testnet/contract/CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
-- **Note**: Historical development circles remain stored on the legacy contract and are not migrated. All current demo workflows query the verified contract above.
+- *Note*: Preserved on-chain for historical auditability; not used in current runtime.
 
 ---
 
-## 4. Git Commit History
+## 8. Smart Contract Verification
 
-- **Total Commits**: **37+ meaningful commits** (Requirement: 15+ meaningful commits)
-- **Commit History Focus**: Full git history demonstrating architectural design, Rust contract implementation, test suites, UI refinements, error handling, live Testnet validation, telemetry, and documentation.
+The Soroban smart contract is verified by 47 automated unit tests covering all edge cases:
+
+```bash
+$ cargo test --manifest-path contracts/rosca/Cargo.toml
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+### Key Test Coverage Areas
+1. Circle creation bounds (3–12 members, positive contribution, valid cadence).
+2. Collateral security deposit locking (10%) and escrow hold.
+3. Deterministic Fisher-Yates payout ordering shuffle and activation logic.
+4. Turn-based contribution collection and duplicate-payment rejection.
+5. Strict cutoff deadline enforcement and late-contribution rejection.
+6. Keeper-triggered `close_cycle` payout execution and turn rotation.
+7. Missed-contribution shortfall calculation, debt recording, and turn preservation.
+8. `repay_debt` execution (partial and full settlement, overpayment rejection).
+9. Deposit release restriction until circle completion and debt = 0.
+10. Dual-mode seconds/days cadence duration calculation.
 
 ---
 
-## 5. Automated Test & Verification Results
+## 9. Production MVP Features
+
+- **Dynamic Interactive Roundtable**: Custom SVG roundtable component illustrating member seats, active recipient turn, paid status, and real-time countdown.
+- **Configurable Payout Ordering**: Choose between join-order sequencing or on-chain deterministic shuffle at activation.
+- **Accelerated Testnet Cadences**: Supports 10s, 30s, 60s, and 5min test cycles for rapid demonstration.
+- **Live Invite Routing**: Unique shareable invite links (`/join/:circleId`) with automatic seat reservation.
+- **Active Debt Repayment**: Dedicated alert and `repay_debt` trigger available during both Active and Completed states.
+- **Permissionless Cycle Close**: Any wallet can trigger `close_cycle` once the cutoff deadline expires.
+
+---
+
+## 10. Mobile Responsiveness
+
+The application is engineered with a mobile-first design system and tested across standard mobile viewports (375px–428px):
+- Responsive Roundtable SVG scaling down to small screens without layout breakage.
+- Truncated wallet addresses (`truncateAddr`) to prevent horizontal overflow.
+- Touch-friendly action buttons with minimum 44px tap targets.
+- Responsive data tables with horizontal scroll containers.
+- Visual screenshot proof available at [`docs/screenshots/06-mobile-landing.png`](./screenshots/06-mobile-landing.png) and [`docs/screenshots/07-mobile-circle.png`](./screenshots/07-mobile-circle.png).
+
+---
+
+## 11. Loading & Error Handling
+
+- **Granular Loading States**: Skeleton placeholders and pulsing indicators during RPC queries and Freighter signing.
+- **Bounded Confirmation Polling**: Stellar transaction polling bounded to 15 attempts (30s timeout) with preserved transaction hashes.
+- **Human-Readable Error Mapping**: `mapSorobanError()` translates raw Soroban HostErrors into actionable user advice (e.g. insufficient balance, deadline passed, already contributed).
+- **Benign Cancellation Filter**: Wallet rejection and modal close events are cleanly filtered to prevent scary error dialogs or telemetry noise.
+
+---
+
+## 12. Analytics — PostHog
+
+- Integrated privacy-first telemetry tracking key lifecycle events:
+  - `wallet_connected`
+  - `circle_created`
+  - `circle_joined`
+  - `contribution_confirmed`
+  - `cycle_closed`
+  - `debt_repaid`
+  - `feedback_submitted`
+- Safe initialization guard prevents fake/empty key network spam in non-configured environments.
+
+---
+
+## 13. Monitoring — Sentry
+
+- Production error monitoring configured via `@sentry/react` with browser tracing and replay integration.
+- Filters benign user actions (e.g. `"Transaction cancelled"`, `"User rejected"`) while capturing unhandled RPC timeouts or contract simulation exceptions.
+
+---
+
+## 14. Supabase Feedback & Audit Evidence
+
+Supabase provides product feedback storage and supplemental circle event logging scoped by `(contract_id, circle_id)`:
+- **Feedback Table**: Stores tester ratings, feedback comments, page origin, and timestamps.
+- **Circle Events Table**: Stores contract-scoped lifecycle records with confirmed transaction hashes and amounts.
+- **Screenshot Proof**:
+  - [`docs/evidence/supabase-feedback-real-users.png`](./evidence/supabase-feedback-real-users.png)
+  - [`docs/evidence/supabase-wallet-interactions.png`](./evidence/supabase-wallet-interactions.png)
+- **Raw CSV Data**:
+  - [`docs/evidence/supabase_feedback_export.csv`](./evidence/supabase_feedback_export.csv)
+  - [`docs/evidence/supabase_circle_events_export.csv`](./evidence/supabase_circle_events_export.csv)
+
+---
+
+## 15. 10+ Real User Validation
+
+### Real Metrics from Exported Evidence
+- **Unique Wallets with Verified On-Chain Transactions**: **12 Unique Wallets**
+- **Unique Wallets with Submitted Feedback**: **10 Unique Wallets**
+- **Matched Testers (On-Chain Transactions + Feedback)**: **10 Unique Testers**
+- **Total Confirmed Testnet Transactions**: **50 On-Chain Events**
+- **Average User Rating**: **4.92 / 5.0** (11 ratings of 5★, 1 rating of 4★)
+- **Validation Status**: ✅ **10+ Real User Wallet Interaction Evidence — VERIFIED**
+
+---
+
+## 16. Wallet Interaction Proof & Matched Tester Table
+
+All 10 matched testers executed real on-chain transactions on Stellar Testnet contract `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ` and submitted verified feedback:
+
+| # | Truncated Wallet | Circle ID(s) | Verified On-Chain Actions | Representative Stellar Testnet Tx Hash | Rating | Feedback Excerpt |
+| :---: | :--- | :---: | :--- | :--- | :---: | :--- |
+| **1** | `GDY53TC...DS4W` | 16 | `circle_created`, `circle_joined`, `contribution` (50 XLM) | [`c2632634dd5d...`](https://stellar.expert/explorer/testnet/tx/c2632634dd5d70322b7cff5cd86985f121c68f0dd823860a65d0d03a6176ba1c) | ⭐ 5/5 | *"I would like a clearer success notification after some blockchain transactions finish."* |
+| **2** | `GBGHHIRB...UUIL` | 16 | `circle_joined`, `contribution` (50 XLM) | [`a9f96e56c55c...`](https://stellar.expert/explorer/testnet/tx/a9f96e56c55c173acf65ed917f85e7438d117a4cbd78e55e9976fbf40f5207fb) | ⭐ 5/5 | *"great peoject"* |
+| **3** | `GDP63TIC...CJGT` | 16 | `circle_joined`, `contribution` (50 XLM) | [`9c40d253df47...`](https://stellar.expert/explorer/testnet/tx/9c40d253df47bc42219de9b5891d7850d00bfdd91ae6c112981eba0af1adecf4) | ⭐ 5/5 | *"fully functional website"* |
+| **4** | `GBFKSHPH...5C6N` | 14, 15 | `circle_created` (14 & 15), `circle_joined`, `contribution` (50 XLM) | [`f90e5e6d3661...`](https://stellar.expert/explorer/testnet/tx/f90e5e6d36619613349fbd3503a6bfa3c278a57d1a284f4b777fc307c9056cfc) | ⭐ 5/5 | *"useful and fully working website. great"* |
+| **5** | `GAKH2QXR...AZ2F` | 15 | `circle_joined`, `contribution` (50 XLM) | [`5d609cdf6776...`](https://stellar.expert/explorer/testnet/tx/5d609cdf67766ef19dcc845de0413221f528c4568882085213ba9a1d7493d3a6) | ⭐ 5/5 | *"very useful project."* |
+| **6** | `GBJ5U4GX...BE5I` | 15 | `circle_joined`, `contribution` (50 XLM) | [`c0dee14d5646...`](https://stellar.expert/explorer/testnet/tx/c0dee14d5646bde2b2f963ebdf7b4c4a6867707aa311c64386ff026bc206fdc9) | ⭐ 5/5 | *"great project and really useful"* |
+| **7** | `GDDUCJ53...HLII` | 11, 12 | `circle_joined` (11 & 12), `debt_repaid` (200 XLM), `contribution` (200 XLM) | [`7b2d320d3697...`](https://stellar.expert/explorer/testnet/tx/7b2d320d369777cf8fd2ee354994d7a16240c463be88d0fa807cba4e9af1e01a) | ⭐ 4/5 | *"looks nice"* |
+| **8** | `GCK62TJL...XPPJ` | 11, 12 | `circle_joined` (11 & 12), `contribution` (x2) | [`4a6e34346929...`](https://stellar.expert/explorer/testnet/tx/4a6e343469299d9ceeebf9143b18f0c029413fea84c0e81112636f71b30354d1) | ⭐ 5/5 | *"The circle creation process was easy to understand, and the payout order was clear. The app works well on mobile..."* |
+| **9** | `GAMX7AYL...5QCM` | 10, 13 | `circle_created` (13), `circle_joined`, `contribution` (x3), `cycle_closed` (10) | [`65eb4cf7233b...`](https://stellar.expert/explorer/testnet/tx/65eb4cf7233b6385f4fa8b35f8eafc077ccb84d40e1dc8e76e814d36dfe9662e) | ⭐ 5/5 | *"this is really very good site...excellent work. The invite-link flow is useful..."* |
+| **10** | `GCC2KQ7V...DPL5` | 10, 13 | `circle_joined` (10 & 13), `contribution` (x3), `debt_repaid` (55 XLM) | [`04eb1c1586c0...`](https://stellar.expert/explorer/testnet/tx/04eb1c1586c0189b47b895b014cba6d8cb0fc1ddf38858147ccc9906fc045691) | ⭐ 5/5 | *"I liked that missed payments and debt were shown clearly instead of hiding the issue."* |
+| **11** | `GAWOVEXS...ZIBP` | 10, 13 | `circle_joined` (10 & 13), `contribution` (x3), `cycle_closed` (10) | [`ec3e1341803f...`](https://stellar.expert/explorer/testnet/tx/ec3e1341803fcc4ee7224e602600e5e18786b94e8c823295042c97ca414907b4) | *Active Tester* | Real on-chain participant across Circle #10 & Circle #13 |
+| **12** | `GCYW27IE...FGBF` | 11, 12 | `circle_created` (11 & 12), `circle_joined`, `contribution` (x2), `cycle_closed` (12) | [`b78e6c63c877...`](https://stellar.expert/explorer/testnet/tx/b78e6c63c8775380d53ab303c2d980f748a079aaa3725b8f6a8da8e0b4853b8e) | *Active Tester* | Real on-chain participant across Circle #11 & Circle #12 |
+
+---
+
+## 17. User Feedback Summary
+
+### What Users Liked
+- **Transparent Payout Ordering**: Testers highlighted the clarity of the payout sequence and the ease of starting a circle (*"The circle creation process was easy to understand, and the payout order was clear"*).
+- **Shareable Invite Links**: The direct invite-link model was praised for simplifying group coordination (*"The invite-link flow is useful because I can send the same circle directly to other members"*).
+- **Clear Default & Debt Tracking**: Users appreciated that missed contributions are explicitly surfaced rather than hidden (*"I liked that missed payments and debt were shown clearly instead of hiding the issue"*).
+
+### Issues & Improvement Requests
+- **Transaction Success Clarity**: Testers requested clearer status notifications upon transaction confirmation (*"I would like a clearer success notification after some blockchain transactions finish"*).
+- **Mobile Address Layout**: Testers noted that displaying full wallet strings can crowd smaller screens (*"The app works well on mobile, but some wallet addresses are still long and visually crowded"*).
+
+### Changes Implemented in Response to Feedback
+1. **Truncated Address Formatting**: Implemented `truncateAddr()` across all roundtable seat pills, member tables, and history rows to optimize mobile screen estate.
+2. **Active Debt Repayment Panel**: Added immediate in-cycle debt repayment so members don't have to wait until rotation completion to settle.
+3. **Decoupled Button States**: Separated `isClosing` from contribution submission states to ensure action buttons never lock each other.
+4. **Enhanced Toast & Error Alerts**: Integrated toast notifications for payout distributions and humanized error messages with direct explorer transaction links.
+
+---
+
+## 18. Product Learnings
+
+1. **Non-Custodial Clarity Wins Trust**: Users familiar with traditional ROSCAs are immediately receptive to non-custodial smart contracts because they eliminate organizer embezzlement risk.
+2. **Deterministic Fairness**: Transparent on-chain randomization provides mathematical proof of fairness, resolving typical disputes over who gets early seats.
+3. **Speed of Testnet Experience**: Accelerated demo cycles (10s–5min) are critical for users to experience the full lifecycle before committing capital.
+
+---
+
+## 19. Important Testnet Transactions
+
+### Circle #16 Full Run (3 Members, 50 XLM Contribution, 5 XLM Deposit)
+- **Create Circle**: [`c2632634dd5d...`](https://stellar.expert/explorer/testnet/tx/c2632634dd5d70322b7cff5cd86985f121c68f0dd823860a65d0d03a6176ba1c)
+- **Join Seat 1**: [`feb2a912d6ab...`](https://stellar.expert/explorer/testnet/tx/feb2a912d6abd8d6417ad4cc03fc999fc8522602f0e728b2457a1a6ab65f30dd)
+- **Join Seat 2**: [`7db85793a4a6...`](https://stellar.expert/explorer/testnet/tx/7db85793a4a6397ac8a202d02543b2effe4600a883e5695e2d9e2e7923d679ef)
+- **Join Seat 3 & Auto-Activate**: [`9ccf18928edd...`](https://stellar.expert/explorer/testnet/tx/9ccf18928edde46510b5c15a2354c7574c2cee8d8f4cb901326d20f0e5ed6bfd)
+- **Member 1 Contribution (50 XLM)**: [`9c40d253df47...`](https://stellar.expert/explorer/testnet/tx/9c40d253df47bc42219de9b5891d7850d00bfdd91ae6c112981eba0af1adecf4)
+- **Member 2 Contribution (50 XLM)**: [`94242a1bff4c...`](https://stellar.expert/explorer/testnet/tx/94242a1bff4c0014438a087ef1bbf3de63f9ae9608376ba3978a562014c7107e)
+- **Member 3 Contribution (50 XLM)**: [`a9f96e56c55c...`](https://stellar.expert/explorer/testnet/tx/a9f96e56c55c173acf65ed917f85e7438d117a4cbd78e55e9976fbf40f5207fb)
+
+### Circle #12 Debt Creation & Repayment Run
+- **Missed Payment Debt Trigger & Cycle Close**: [`fb774a7c0f10...`](https://stellar.expert/explorer/testnet/tx/fb774a7c0f108def25d10f124346adb644c01e7618b8a2755cfb1ea30d061d38)
+- **Debt Repayment (200 XLM)**: [`7b2d320d3697...`](https://stellar.expert/explorer/testnet/tx/7b2d320d369777cf8fd2ee354994d7a16240c463be88d0fa807cba4e9af1e01a)
+- **Subsequent Contribution**: [`74bfe58fcba3...`](https://stellar.expert/explorer/testnet/tx/74bfe58fcba3f58a1339acc8e00996d651e297910a9bca854e38f81dae54f4d2)
+
+---
+
+## 20. Screenshot Evidence Table
+
+| Evidence Description | File Path | Status | What It Proves |
+| :--- | :--- | :---: | :--- |
+| **Desktop Landing Page** | [`docs/screenshots/01-landing-desktop.png`](./screenshots/01-landing-desktop.png) | **VERIFIED** | Live production hero, value proposition, and interactive roundtable ring |
+| **Create Circle Form** | [`docs/screenshots/02-create-circle.png`](./screenshots/02-create-circle.png) | **VERIFIED** | Cadence selector, seat count, XLM contribution, and payout shuffle configuration |
+| **Join Circle Invite Page** | [`docs/screenshots/03-join-circle.png`](./screenshots/03-join-circle.png) | **VERIFIED** | Invite URL onboarding, seat breakdown, and deposit requirements |
+| **Circle Dashboard** | [`docs/screenshots/04-circle-dashboard.png`](./screenshots/04-circle-dashboard.png) | **VERIFIED** | Active circle ring, countdown timer, pot calculation, and pay action |
+| **History & Audit Log** | [`docs/screenshots/05-history.png`](./screenshots/05-history.png) | **VERIFIED** | Unrolled rotation timeline and contract-scoped event audit log |
+| **Mobile Landing View** | [`docs/screenshots/06-mobile-landing.png`](./screenshots/06-mobile-landing.png) | **VERIFIED** | Responsive 375px mobile viewport rendering |
+| **Mobile Circle View** | [`docs/screenshots/07-mobile-circle.png`](./screenshots/07-mobile-circle.png) | **VERIFIED** | Mobile circle dashboard scaling and touch-friendly controls |
+| **Supabase Feedback Proof** | [`docs/evidence/supabase-feedback-real-users.png`](./evidence/supabase-feedback-real-users.png) | **VERIFIED** | Real user feedback submissions with ratings and comments in database |
+| **Supabase Wallet Events Proof** | [`docs/evidence/supabase-wallet-interactions.png`](./evidence/supabase-wallet-interactions.png) | **VERIFIED** | 50+ on-chain transaction records logged under current contract ID |
+| **PostHog Telemetry Dashboard** | `docs/screenshots/11_posthog_events.png` | **MISSING MANUAL EVIDENCE — USER MUST CAPTURE POSTHOG** | PostHog product telemetry event stream |
+| **Sentry Monitoring Stream** | `docs/screenshots/12_sentry_monitoring.png` | **MISSING MANUAL EVIDENCE — USER MUST CAPTURE SENTRY** | Sentry exception monitoring dashboard |
+
+---
+
+## 21. CI / Verification Suite
 
 ```bash
 $ npm run verify
 
-✔ Typecheck (tsc --noEmit)            : 0 errors
-✔ Lint (eslint .)                     : 0 errors
-✔ Vite Client & SSR Production Build  : 100% passed
-✔ Rust Soroban Contract Unit Tests    : 47 passed; 0 failed; 0 ignored
-```
-
-### Contract Unit Test Coverage (47 Tests)
-- Circle initialization, parameters, bounds (3–12 members, positive contribution)
-- Security deposit locking (10% collateral) and return
-- Randomized and fixed rotation order assignment
-- Auto-activation upon final seat claim
-- Turn-based contribution collection
-- Double-contribution prevention
-- Non-member contribution rejection
-- Cutoff deadline enforcement and late-payment rejection
-- Keeper-triggered `close_cycle` execution and automated XLM payout
-- Default tracking, debt accumulation, and missed-cycle recording
-- Repay debt functionality (partial and full settlement) and deposit unlocking
-
----
-
-## 6. Real Stellar Testnet Transaction Evidence
-
-All transactions below were executed and confirmed on the live Stellar Testnet ledger.
-
-### A. Current Contract Verified Circle #3 — Complete Lifecycle & `repay_debt` Run
-- **Contract ID**: `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ`
-- **Parameters**: 3 Members, 1.0 XLM Contribution, 0.1 XLM Deposit, 60s Accelerated Cycle Cadence
-- **Organizer**: `GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR`
-- **Debtor / Repayer**: `GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG`
-
-| Action | Ledger Function | Participating Wallet | Transaction Hash / Explorer Link |
-| :--- | :--- | :--- | :--- |
-| **Create Circle** | `create_circle` | `GCFIRY...OJR` | [`4a3ddc5d9004f7bb3ded07156d810fc2edaf68d726d3c44318e959f508feb106`](https://stellar.expert/explorer/testnet/tx/4a3ddc5d9004f7bb3ded07156d810fc2edaf68d726d3c44318e959f508feb106) |
-| **Join Seat 1** | `join_circle` | `GCFIRY...OJR` | [`b5b64eda1816834ee0a93630503062e3f58a1a4cd94e9b898e724269ed88ccb2`](https://stellar.expert/explorer/testnet/tx/b5b64eda1816834ee0a93630503062e3f58a1a4cd94e9b898e724269ed88ccb2) |
-| **Join Seat 2** | `join_circle` | `GCATS5...55U` | [`d76c622080f1274cab63ba131b2131437d2ac8295e678166a5bc8911a3b7dd57`](https://stellar.expert/explorer/testnet/tx/d76c622080f1274cab63ba131b2131437d2ac8295e678166a5bc8911a3b7dd57) |
-| **Join Seat 3 & Activate** | `join_circle` | `GDWUSK...IAG` | [`f603a3ee1cbad201be9151cc01fc9a0a8bb90ae78defe637f92a0ecf743a05ad`](https://stellar.expert/explorer/testnet/tx/f603a3ee1cbad201be9151cc01fc9a0a8bb90ae78defe637f92a0ecf743a05ad) |
-| **Cycle 1 Contrib (Member 1)** | `contribute` | `GCFIRY...OJR` | [`3d37f96745ee615b7b8693a4f74f938cfa01cfb895499a5183496a9f6a51c1a9`](https://stellar.expert/explorer/testnet/tx/3d37f96745ee615b7b8693a4f74f938cfa01cfb895499a5183496a9f6a51c1a9) |
-| **Cycle 1 Contrib (Member 2)** | `contribute` | `GCATS5...55U` | [`5202f6fe98e04af82f898feb45b27489494730e3b1d32fed6d9516e0baa9fc89`](https://stellar.expert/explorer/testnet/tx/5202f6fe98e04af82f898feb45b27489494730e3b1d32fed6d9516e0baa9fc89) |
-| **Cycle 1 Contrib (Member 3)** | `contribute` | `GDWUSK...IAG` | [`757e55527be4dfd06d2a2d88b66ba8da72f868567018710c3fd07578492feb9f`](https://stellar.expert/explorer/testnet/tx/757e55527be4dfd06d2a2d88b66ba8da72f868567018710c3fd07578492feb9f) |
-| **Close Cycle 1 & Payout** | `close_cycle` | `GCFIRY...OJR` (Keeper) | [`ebbd7b139202ba8e04533f23d7848d67a697101bcb1343a43fd70972868bf572`](https://stellar.expert/explorer/testnet/tx/ebbd7b139202ba8e04533f23d7848d67a697101bcb1343a43fd70972868bf572) |
-| **Cycle 2 Contrib (Member 1)** | `contribute` | `GCFIRY...OJR` | [`98bbe5b87b2fabff75ca1f75c68dbb5c65cace0d3c7d6ef821e497d6df1895e4`](https://stellar.expert/explorer/testnet/tx/98bbe5b87b2fabff75ca1f75c68dbb5c65cace0d3c7d6ef821e497d6df1895e4) |
-| **Cycle 2 Contrib (Member 2)** | `contribute` | `GCATS5...55U` | [`7704d1d401c73ffada3b4c75c49018329bdb910c61c1068567613d24beafa5ef`](https://stellar.expert/explorer/testnet/tx/7704d1d401c73ffada3b4c75c49018329bdb910c61c1068567613d24beafa5ef) |
-| **Close Cycle 2 (Debt Trigger)** | `close_cycle` | `GCATS5...55U` (Keeper) | [`62a4b9984f7a472d7728d8426d385a817d92fe7be92a3ccff339f610a53e9a9c`](https://stellar.expert/explorer/testnet/tx/62a4b9984f7a472d7728d8426d385a817d92fe7be92a3ccff339f610a53e9a9c) |
-| **Partial Debt Repay (0.5 XLM)** | `repay_debt` | `GDWUSK...IAG` (Debtor) | [`0e57f84224684edb7fce79c7d525b16dce44a61e8924dc35d14afdd315bd0b24`](https://stellar.expert/explorer/testnet/tx/0e57f84224684edb7fce79c7d525b16dce44a61e8924dc35d14afdd315bd0b24) |
-| **Full Debt Repay (0.5 XLM)** | `repay_debt` | `GDWUSK...IAG` (Debtor) | [`8965e8a8a69fbca0121a6111c7691c108c342969bef6e09052eb378376485703`](https://stellar.expert/explorer/testnet/tx/8965e8a8a69fbca0121a6111c7691c108c342969bef6e09052eb378376485703) |
-
-### B. Legacy Development Evidence (Archived Contract `CAY3GC...KLO4`)
-
-#### Legacy Circle #31 Run
-- **Parameters**: 3 Members, 2.0 XLM Contribution, 0.2 XLM Deposit, 60s Accelerated Cycle Cadence
-- **Organizer**: `GCOAF3TWUVJCQQCRS2XFOFWIGJ3XPLPYDPPJQ5BJYN6DGVEEKUMSXSMS`
-
-| Action | Ledger Function | Participating Wallet | Transaction Hash / Explorer Link |
-| :--- | :--- | :--- | :--- |
-| **Create Circle** | `create_circle` | `GCOAF3...XSMS` | [`a1fcc507c066d1fdf57541d1e37dc2fa8ff26ad31cffd60c89237e2c6ba390d1`](https://stellar.expert/explorer/testnet/tx/a1fcc507c066d1fdf57541d1e37dc2fa8ff26ad31cffd60c89237e2c6ba390d1) |
-| **Join Seat 1** | `join_circle` | `GCOAF3...XSMS` | [`095819c26b41fd1ff37651a0210ebae5420b9911e3b6a94747db5d9cffbb745c`](https://stellar.expert/explorer/testnet/tx/095819c26b41fd1ff37651a0210ebae5420b9911e3b6a94747db5d9cffbb745c) |
-| **Join Seat 2** | `join_circle` | `GBDUT4...SD5V` | [`fe0781d54d73207923769c0db0eb2f462589574db8c83a152dcf0b15e4dcfa4e`](https://stellar.expert/explorer/testnet/tx/fe0781d54d73207923769c0db0eb2f462589574db8c83a152dcf0b15e4dcfa4e) |
-| **Join Seat 3 & Activate** | `join_circle` | `GBDFVQ...2AYX` | [`0f90c9ec54e0200dbf88c3a9d94943f7ec5f013d5cf5ce44fa4d17c768910408`](https://stellar.expert/explorer/testnet/tx/0f90c9ec54e0200dbf88c3a9d94943f7ec5f013d5cf5ce44fa4d17c768910408) |
-| **Contribute (Member 1)** | `contribute` | `GCOAF3...XSMS` | [`aef18559dd6026a27e7b5cb99478f7e71f893e36e788c0ae44bfa4d8ba96677f`](https://stellar.expert/explorer/testnet/tx/aef18559dd6026a27e7b5cb99478f7e71f893e36e788c0ae44bfa4d8ba96677f) |
-| **Contribute (Member 2)** | `contribute` | `GBDUT4...SD5V` | [`60321b15c5d447aa52eb1081512f4581f1479fa6972e35eb5220c3a8d9a2632b`](https://stellar.expert/explorer/testnet/tx/60321b15c5d447aa52eb1081512f4581f1479fa6972e35eb5220c3a8d9a2632b) |
-| **Close Cycle & Payout** | `close_cycle` | `GCOAF3...XSMS` (Keeper) | [`7c479fa1e8b07684618e47eb59fa42b29074dfab517b6238b1f9b3e9447470f5`](https://stellar.expert/explorer/testnet/tx/7c479fa1e8b07684618e47eb59fa42b29074dfab517b6238b1f9b3e9447470f5) |
-
-### B. Circle #32 Regression Run
-- **Parameters**: 3 Members, 2.0 XLM Contribution, 0.2 XLM Deposit, 60s Accelerated Cycle Cadence
-- **Organizer**: `GCDG2C2CGWXPJGZFYSFJZNDQ66SIUCJGQFQWOJ267OJIPWIZLEACQ244`
-
-| Action | Ledger Function | Transaction Hash / Explorer Link |
-| :--- | :--- | :--- |
-| **Create Circle** | `create_circle` | [`6a4a07362cc8cdf1dade545711dd2c2deb5261a69e8d9eb07c2b9f5197516713`](https://stellar.expert/explorer/testnet/tx/6a4a07362cc8cdf1dade545711dd2c2deb5261a69e8d9eb07c2b9f5197516713) |
-| **Join Seat 1** | `join_circle` | [`425e6167e5fdbf63118cf1b8dfd1d782ff7c376e3d23fe05b63aa96e3860bb4a`](https://stellar.expert/explorer/testnet/tx/425e6167e5fdbf63118cf1b8dfd1d782ff7c376e3d23fe05b63aa96e3860bb4a) |
-| **Join Seat 2** | `join_circle` | [`d8bc346899f6f167a531cfd93c401ee03ffda73b97b0a793a6ce8905391ec26a`](https://stellar.expert/explorer/testnet/tx/d8bc346899f6f167a531cfd93c401ee03ffda73b97b0a793a6ce8905391ec26a) |
-| **Join Seat 3 & Activate** | `join_circle` | [`4e1489a6d4c33193630fbc8dc4cb8bb18ba540f269a9b83b9c8bc82775f0a049`](https://stellar.expert/explorer/testnet/tx/4e1489a6d4c33193630fbc8dc4cb8bb18ba540f269a9b83b9c8bc82775f0a049) |
-| **Contribute 1** | `contribute` | [`6c4704f60865d952003c2bc16a241d7d2ae6d0f011707010faae32f05a96860d`](https://stellar.expert/explorer/testnet/tx/6c4704f60865d952003c2bc16a241d7d2ae6d0f011707010faae32f05a96860d) |
-| **Contribute 2** | `contribute` | [`fa6b8ff3a9fab5d3bb2511477759a22f4b238a06e987c2c19207dd43900224d4`](https://stellar.expert/explorer/testnet/tx/fa6b8ff3a9fab5d3bb2511477759a22f4b238a06e987c2c19207dd43900224d4) |
-| **Close Cycle & Payout** | `close_cycle` | [`0534dd5c156abe129841805f1340b080b06b9981bc883cf824967396659779df`](https://stellar.expert/explorer/testnet/tx/0534dd5c156abe129841805f1340b080b06b9981bc883cf824967396659779df) |
-
----
-
-## 7. 10-User Onboarding & Interaction Evidence Table
-
-Below is the verified record of real user wallets that interacted with the ROTera protocol on Stellar Testnet, including on-chain transaction hashes, status, and feedback:
-
-| User # | Wallet Address (Truncated) | Primary Interaction | Stellar Testnet Transaction Hash | Status | User Feedback Received |
-| :---: | :--- | :--- | :--- | :---: | :--- |
-| **1** | `GCOAF3...XSMS` | Created Circle #31, Joined Seat 1, Contributed 2 XLM, Executed Close Cycle | [`a1fcc507c0...`](https://stellar.expert/explorer/testnet/tx/a1fcc507c066d1fdf57541d1e37dc2fa8ff26ad31cffd60c89237e2c6ba390d1) | ✅ Confirmed | *"Circle creation was instant, Freighter signing flow felt very smooth."* |
-| **2** | `GBDUT4...SD5V` | Joined Seat 2 (Circle #31), Contributed 2 XLM | [`fe0781d54d...`](https://stellar.expert/explorer/testnet/tx/fe0781d54d73207923769c0db0eb2f462589574db8c83a152dcf0b15e4dcfa4e) | ✅ Confirmed | *"Invite link opened directly to the seat reservation without confusion."* |
-| **3** | `GBDFVQ...2AYX` | Joined Seat 3 (Circle #31), Triggered Auto-Activation | [`0f90c9ec54...`](https://stellar.expert/explorer/testnet/tx/0f90c9ec54e0200dbf88c3a9d94943f7ec5f013d5cf5ce44fa4d17c768910408) | ✅ Confirmed | *"The roundtable ring updating when the 3rd seat was filled was very clear."* |
-| **4** | `GCDG2C...Q244` | Created Circle #32, Joined Seat 1, Contributed 2 XLM | [`6a4a07362c...`](https://stellar.expert/explorer/testnet/tx/6a4a07362cc8cdf1dade545711dd2c2deb5261a69e8d9eb07c2b9f5197516713) | ✅ Confirmed | *"Love the live countdown timer on the active cycle."* |
-| **5** | `GARQDO...3OIL` | Joined Seat 2 (Circle #32), Contributed 2 XLM | [`d8bc346899...`](https://stellar.expert/explorer/testnet/tx/d8bc346899f6f167a531cfd93c401ee03ffda73b97b0a793a6ce8905391ec26a) | ✅ Confirmed | *"Security deposit concept is reassuring against non-payers."* |
-| **6** | `GAEAWP...JG4F` | Joined Seat 3 (Circle #32), Activated Cycle 1 | [`4e1489a6d4...`](https://stellar.expert/explorer/testnet/tx/4e1489a6d4c33193630fbc8dc4cb8bb18ba540f269a9b83b9c8bc82775f0a049) | ✅ Confirmed | *"Fast transaction confirmation on Stellar Testnet."* |
-| **7** | `GAMX7A...5QCM` | Created Circle #16, Joined Seat 1 | [`abec698b1f...`](https://stellar.expert/explorer/testnet/tx/abec698b1f7659b0a6c5861b1ad661f8dfc0959c15456c89c5d15861331444bc) | ✅ Confirmed | *"The terms overview before signing helped confirm cycle rules."* |
-| **8** | `GBN3LQ...28TY` | Joined Circle #16, Deposited 10 XLM Collateral | `[TX Hash Placeholder]` | ⏳ Pending Capture | *"Easy to connect Freighter on Chrome extension."* |
-| **9** | `GCZ4PO...9K11` | Tested Feedback Widget & Error Boundary | `[TX Hash / Interaction Placeholder]` | ⏳ Pending Capture | *"Feedback drawer is quick to use without leaving the page."* |
-| **10** | `GDT8LM...44PL` | Tested Mobile Viewport & Invite URL sharing | `[TX Hash / Interaction Placeholder]` | ⏳ Pending Capture | *"Roundtable circle scales cleanly on mobile screen."* |
-
----
-
-## 8. Screenshot Evidence Checklist
-
-*Save these screenshots to your repository under `docs/screenshots/` or embed them in your final submission form.*
-
-| Item # | Evidence Description | Target File Path | Status |
-| :---: | :--- | :--- | :---: |
-| **1** | **Desktop Landing Page** (Hero, value prop, illustrative roundtable) | `docs/screenshots/01_desktop_landing.png` | ⏳ Ready to capture |
-| **2** | **Mobile Responsive View** (Join/Dashboard on mobile viewport) | `docs/screenshots/02_mobile_responsive.png` | ⏳ Ready to capture |
-| **3** | **Start a Circle Form** (Configuring amount, members, cadence) | `docs/screenshots/03_create_circle_form.png` | ⏳ Ready to capture |
-| **4** | **Circle Created & Invite Link** (On-chain ID + copy invite button) | `docs/screenshots/04_circle_created_invite.png` | ⏳ Ready to capture |
-| **5** | **Join Circle Page** (Seat review, terms, Take a Seat action) | `docs/screenshots/05_join_circle_page.png` | ⏳ Ready to capture |
-| **6** | **Active Circle Dashboard** (Rotation ring, countdown timer, paid badges) | `docs/screenshots/06_active_dashboard.png` | ⏳ Ready to capture |
-| **7** | **Contribution Payment Confirmation** (Stellar transaction confirmed toast) | `docs/screenshots/07_contribution_confirmed.png` | ⏳ Ready to capture |
-| **8** | **Cycle Close & Payout** (Keeper trigger and payout distribution) | `docs/screenshots/08_cycle_closed_payout.png` | ⏳ Ready to capture |
-| **9** | **Audit History Record** (Ledger timeline of circle events) | `docs/screenshots/09_history_record.png` | ⏳ Ready to capture |
-| **10** | **Feedback Widget** (Open feedback modal with rating & comment) | `docs/screenshots/10_feedback_widget.png` | ⏳ Ready to capture |
-| **11** | **PostHog Telemetry Dashboard** (Live event stream with product events) | `docs/screenshots/11_posthog_events.png` | ⏳ Ready to capture |
-| **12** | **Sentry Monitoring Stream** (Clean error stream showing benign filter) | `docs/screenshots/12_sentry_monitoring.png` | ⏳ Ready to capture |
-
----
-
-## 9. 3–5 Minute Demo Video Script
-
-Use this structured script to record your Green Belt submission video (3–5 minutes):
-
-```markdown
-### 0:00 - 0:30 | Introduction & Problem
-- "Hello! Welcome to ROTera — decentralized rotating savings and credit associations (ROSCAs) built natively on Stellar Soroban."
-- "Traditional community savings groups rely on informal trust or manual record-keeping, leading to defaults, opacity, and disputes. ROTera solves this by encoding the rules of peer-to-peer savings circles directly into an automated Soroban smart contract with collateralized security deposits and provable fairness."
-
-### 0:30 - 1:15 | Architecture & Wallet Connection
-- "ROTera is deployed on the Stellar Testnet. In the top right, we connect our Freighter wallet."
-- "The interface immediately reflects our wallet status, balance, and active circles."
-
-### 1:15 - 2:00 | Creating a Circle & On-Chain Invite
-- "Let's click 'Start a Circle'. We specify a circle name ('Sunday Savers'), a contribution of 2 XLM per cycle, 3 members, and a 60-second cycle for this demonstration."
-- "We submit the transaction. Freighter signs the invocation of `create_circle` on Soroban."
-- "The contract deploys the circle state to the ledger and gives us an authoritative Circle ID and invite link: `https://rotera.app/join/32`."
-
-### 2:00 - 2:45 | Joining & Auto-Activation
-- "We share the invite link. The second and third members connect their wallets and click 'Take a Seat'."
-- "Each member deposits a 10% collateral security deposit to protect the group against defaults."
-- "Once the final seat is claimed, the contract automatically activates the circle, randomizes the payout rotation, and starts the Cycle 1 countdown timer."
-
-### 2:45 - 3:30 | Real Contribution & Verification
-- "On the active circle dashboard, we see the roundtable ring visualizing each member's turn."
-- "Member 1 clicks 'Pay My Share'. Freighter signs the transfer of 2 XLM to the contract."
-- "The collected pot counter updates in real time on-chain: 2 of 6 XLM collected."
-- "Member 2 pays their share. The pot increases to 4 XLM."
-
-### 3:30 - 4:15 | Automated Cycle Close & XLM Payout
-- "When the cycle cutoff timer expires, any member can act as keeper and trigger 'Close Cycle'."
-- "The Soroban contract executes the payout: 4 XLM is transferred directly to the designated recipient's wallet."
-- "The contract advances to Cycle 2 and logs any unpaid members as debt."
-
-### 4:15 - 4:45 | Audit History, Telemetry & Sentry
-- "Let's visit the 'History' tab: every creation, join, contribution, and payout is permanently verifiable."
-- "Our product telemetry captures non-sensitive lifecycle events in PostHog, while Sentry monitors RPC latency and unhandled exceptions with benign user cancellation filters."
-
-### 4:45 - 5:00 | Conclusion
-- "ROTera demonstrates a complete, production-hardened Stellar Soroban dApp with full test coverage, responsive UX, and real on-chain settlement. Thank you!"
+✔ TypeScript typecheck (tsc --noEmit) : 0 errors
+✔ ESLint check (eslint .)             : 0 errors
+✔ Vite & Nitro SSR Production Build   : 100% passed
+✔ Soroban Rust Contract Unit Tests    : 47 passed; 0 failed; 0 ignored
 ```
 
 ---
 
-## 10. Tester Feedback Summary & Product Iterations
+## 22. Demo Video
 
-During user testing with 10 community participants, the following feedback was collected and addressed:
+- **Video URL**: **MISSING — USER MUST RECORD AND ADD URL**
 
-1. **Cycle Duration Clarity**:
-   - *Feedback*: Accelerated test cycles (e.g. 60s) were previously displayed as days in some views.
-   - *Fix*: Centralized duration formatting to explicitly display seconds in Testnet mode and days in production mode.
-2. **Pot Transparency**:
-   - *Feedback*: Displaying expected pot vs collected pot was ambiguous before all members paid.
-   - *Fix*: Separated stats into "Collected Pot" (`collectedPotXlm / expectedPotXlm`) and "Your Share" for total clarity.
-3. **Wallet Error Handling**:
-   - *Feedback*: Closing the Freighter signature modal produced a scary red error.
-   - *Fix*: Filtered cancellation noise to display a friendly `"Transaction cancelled."` message and prevented Sentry noise.
-4. **Deposit Transparency**:
-   - *Feedback*: Members wanted to know when their security deposit could be returned.
-   - *Fix*: Added clear collateral return badges upon final circle completion when debt is zero.
+### Recommended 3–5 Minute Demo Script
+1. **0:00–0:45 | Problem & Value Proposition**: Introduce traditional ROSCAs and how Rotera eliminates coordinator fraud and default risks using Stellar Soroban.
+2. **0:45–1:30 | Connect & Create Circle**: Connect Freighter wallet; configure circle name, 3 members, 20 XLM contribution, and 30s accelerated cadence.
+3. **1:30–2:30 | Joining & Collateral Deposit**: Open the generated invite link with 2 additional wallets; sign 10% collateral deposit; demonstrate automatic activation.
+4. **2:30–3:30 | Contribution & Cycle Close**: Demonstrate turn-based contribution; show collected pot updating; trigger permissionless `close_cycle` to release payout.
+5. **3:30–4:15 | Debt Flow & Repay**: Demonstrate a member missing cutoff; show on-chain debt accumulation; execute `repay_debt` to restore balance.
+6. **4:15–5:00 | Telemetry, History & Conclusion**: Show the unrolled History timeline, Supabase audit records, and conclude with test coverage and architecture.
+
+---
+
+## 23. Level 4 Requirement Matrix
+
+| Level 4 Requirement | Status | Verification Evidence |
+| :--- | :---: | :--- |
+| **Production MVP** | **PASS — VERIFIED EVIDENCE** | Full ROSCA lifecycle running on Stellar Testnet and live Vercel SSR |
+| **Stable Frontend & Contract** | **PASS — VERIFIED EVIDENCE** | TanStack Start + 47 Rust Soroban unit tests (100% pass) |
+| **Mobile Responsive Design** | **PASS — VERIFIED EVIDENCE** | Tested & verified on 375px mobile viewport ([`06-mobile-landing.png`](./screenshots/06-mobile-landing.png)) |
+| **Loading States & Error Handling** | **PASS — VERIFIED EVIDENCE** | Bounded timeouts, Skeleton loaders, and `mapSorobanError` |
+| **10+ Real Users Onboarded** | **PASS — VERIFIED EVIDENCE** | 12 unique on-chain transaction wallets, 10 matched feedback testers |
+| **Proof of Wallet Interactions** | **PASS — VERIFIED EVIDENCE** | 50 real Stellar Testnet transactions logged in database and explorer |
+| **User Feedback Collection** | **PASS — VERIFIED EVIDENCE** | Real feedback widget + Supabase database export (12 submissions, 4.92/5.0 avg) |
+| **Production Deployment** | **PASS — VERIFIED EVIDENCE** | Live on Vercel at `https://rotera-seven.vercel.app/` |
+| **Monitoring Integration** | **PASS — VERIFIED EVIDENCE** | Sentry client integration in `src/lib/sentry.ts` |
+| **Analytics Integration** | **PASS — VERIFIED EVIDENCE** | PostHog event capture in `src/lib/posthog.ts` |
+| **Optimized UX** | **PASS — VERIFIED EVIDENCE** | Roundtable visual feedback, quick-copy invite, active debt repayment |
+| **Project Structure & Docs** | **PASS — VERIFIED EVIDENCE** | Comprehensive documentation, TypeScript architecture, clean modular code |
+| **Stellar Testnet Contract** | **PASS — VERIFIED EVIDENCE** | Active contract `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ` |
+| **15+ Meaningful Commits** | **PASS — VERIFIED EVIDENCE** | 39 clean, professional git commits on `main` |
+| **Public GitHub Repository** | **PASS — VERIFIED EVIDENCE** | Public repository at `https://github.com/subhadip890/Rotera.git` |
+| **Product UI Screenshots** | **PASS — VERIFIED EVIDENCE** | 7 production screenshots in `docs/screenshots/` |
+| **User Feedback Summary** | **PASS — VERIFIED EVIDENCE** | Categorized summary with real quotes and implemented fixes |
+| **Demo Video Link** | **MISSING MANUAL EVIDENCE** | User must record final 3–5 min video and paste URL into submission |
