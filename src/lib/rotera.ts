@@ -159,3 +159,34 @@ export function randomizeOrder(names: string[]) {
   }
   return { order, seed };
 }
+
+/**
+ * Format cycle duration for display.
+ * In accelerated Testnet demo mode (VITE_ENABLE_TEST_CYCLES=true),
+ * timing values are interpreted as seconds (e.g. 10s, 30s, 60s, 300s = 5 minutes).
+ * In standard/production mode, values are interpreted as days (e.g. 7 = Weekly, 14 = Every two weeks, 30 = Monthly).
+ *
+ * @param value - Stored cycle_length_days (seconds in test mode, days in prod)
+ * @returns Human-readable duration string
+ */
+export function formatCycleDuration(value: number): string {
+  const isTestMode = import.meta.env["VITE_ENABLE_TEST_CYCLES"] === "true";
+  if (isTestMode) {
+    if (value === 10) return "10 seconds";
+    if (value === 30) return "30 seconds";
+    if (value === 60) return "60 seconds";
+    if (value === 300) return "5 minutes";
+    if (value < 60) return `${value} seconds`;
+    if (value % 60 === 0) {
+      const mins = value / 60;
+      return `${mins} minute${mins !== 1 ? "s" : ""}`;
+    }
+    return `${value} seconds`;
+  }
+
+  // Production / non-test mode
+  if (value === 7) return "Weekly";
+  if (value === 14) return "Every two weeks";
+  if (value === 30) return "Monthly";
+  return `${value} days`;
+}

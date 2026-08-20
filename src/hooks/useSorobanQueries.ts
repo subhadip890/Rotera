@@ -23,8 +23,6 @@ import {
 } from "@/lib/soroban";
 import {
   fetchCircleEventsFromSupabase,
-  fetchCircleMemberNames,
-  subscribeCircleMemberNames,
   subscribeCircleEvents,
 } from "@/lib/supabase";
 import { captureException } from "@/lib/sentry";
@@ -87,31 +85,6 @@ export function useSupabaseCircleEvents(circleId: string | number | null | undef
     queryKey: ["supabaseCircleEvents", String(circleId)],
     queryFn: () => fetchCircleEventsFromSupabase(circleId),
     staleTime: 5_000,
-  });
-}
-
-/**
- * Fetch and live-subscribe to member display names for a circle from Supabase.
- */
-export function useCircleMemberNames(circleId: string | number | null | undefined) {
-  const queryClient = useQueryClient();
-  const cid = circleId ? String(circleId) : null;
-
-  useEffect(() => {
-    if (!cid || cid === "sunday-six" || cid === "demo") return;
-
-    const unsub = subscribeCircleMemberNames(cid, (updatedMap) => {
-      queryClient.setQueryData(["circleMemberNames", cid], updatedMap);
-    });
-
-    return () => unsub();
-  }, [cid, queryClient]);
-
-  return useQuery({
-    queryKey: ["circleMemberNames", cid],
-    queryFn: () => fetchCircleMemberNames(cid),
-    enabled: !!cid && cid !== "sunday-six" && cid !== "demo",
-    staleTime: 30_000,
   });
 }
 

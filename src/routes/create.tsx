@@ -26,7 +26,7 @@ export const Route = createFileRoute("/create")({
 
 function CreateCircle() {
   const navigate = useNavigate();
-  const { wallet, connect, setActiveCircleId } = useRotera();
+  const { wallet, address, connect, setActiveCircleId } = useRotera();
   const connected = wallet === "connected";
 
   // Test-mode flag — set VITE_ENABLE_TEST_CYCLES=true for accelerated Testnet demo cycles.

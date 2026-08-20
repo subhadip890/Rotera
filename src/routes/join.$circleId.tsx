@@ -1,14 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
+import { formatCycleDuration } from "@/lib/rotera";
 import {
   useJoinCircleMutation,
   useCircleState,
-  useCircleMemberNames,
   stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
-import { upsertCircleMemberName } from "@/lib/supabase";
 
 export const Route = createFileRoute("/join/$circleId")({
   head: () => ({
@@ -34,7 +33,6 @@ function JoinCircle() {
   const { circleId } = Route.useParams();
   const { wallet, address, connect, setActiveCircleId } = useRotera();
   const joinMutation = useJoinCircleMutation();
-  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [joined, setJoined] = useState(false);
@@ -44,31 +42,10 @@ function JoinCircle() {
   // Load real circle data from chain
   const { data: circle, isLoading, isError } = useCircleState(circleId);
 
-  // Load member display names from Supabase
-  const { data: memberNames } = useCircleMemberNames(circleId);
-  const namesByAddress = memberNames || new Map<string, string>();
-
-  // Pre-fill display name if user previously saved one for this circle
-  useEffect(() => {
-    if (address && namesByAddress.has(address) && !displayName) {
-      setDisplayName(namesByAddress.get(address) || "");
-    }
-  }, [address, namesByAddress, displayName]);
-
   async function handleTakeSeat() {
     setError(null);
     if (!connected) {
       setError("Connect your wallet first.");
-      return;
-    }
-
-    const trimmedName = displayName.trim();
-    if (!trimmedName) {
-      setError("Please enter your name for this circle.");
-      return;
-    }
-    if (trimmedName.length > 40) {
-      setError("Your name must be 40 characters or fewer.");
       return;
     }
 
@@ -77,27 +54,18 @@ function JoinCircle() {
       setTxHash(res.txHash);
       setJoined(true);
       setActiveCircleId(circleId);  // persist for dashboard use
-
-      // Persist display name to Supabase (graceful degradation if not configured or failed)
-      if (address) {
-        await upsertCircleMemberName(circleId, address, trimmedName).catch((err) => {
-          console.warn("[Rotera] Failed to save display name to Supabase:", err);
-        });
-      }
     } catch (err: any) {
       setError(err?.message || "Join transaction failed. Check your wallet and try again.");
     }
   }
 
-  // Build seats for Roundtable from chain data & display names based on circle.member_count
+  // Build seats for Roundtable from chain data based on circle.member_count
   const seats = circle
     ? Array.from({ length: circle.member_count }, (_, i) => {
         if (i < circle.payout_order.length) {
           const addr = circle.payout_order[i] || "";
           const isMe = Boolean(address && addr === address);
-          const name = isMe
-            ? "You"
-            : (namesByAddress.get(addr) || truncateAddr(addr));
+          const name = isMe ? "You" : truncateAddr(addr);
           return {
             id: addr,
             name,
@@ -187,7 +155,7 @@ function JoinCircle() {
               <Row k="Contribution" v={`${contributionXlm} XLM`} />
               <Row
                 k="Cycle length"
-                v={`${circle.cycle_length_days} days`}
+                v={formatCycleDuration(circle.cycle_length_days)}
               />
               <Row k="Seats left" v={`${seatsAvailable} of ${totalSeats}`} />
             </dl>
@@ -207,7 +175,7 @@ function JoinCircle() {
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <span className="num text-sm font-medium">
-                        {namesByAddress.get(addr) || truncateAddr(addr)}
+                        {truncateAddr(addr)}
                       </span>
                       {addr === address && (
                         <span className="ml-auto rounded-full bg-verdigris/15 px-2 py-0.5 text-xs text-verdigris">
@@ -273,29 +241,6 @@ function JoinCircle() {
                   Joining requires a small deposit ({circle ? stroopsToXlm(circle.deposit_amount) : "—"} XLM)
                   held by the contract until the circle completes.
                 </p>
-
-                <div className="mt-4">
-                  <label htmlFor="member-display-name" className="block text-sm font-medium text-ink">
-                    Your name in this circle <span className="text-rust">*</span>
-                  </label>
-                  <input
-                    id="member-display-name"
-                    type="text"
-                    required
-                    maxLength={40}
-                    placeholder="e.g. Alex, Sarah M., Subhadip"
-                    value={displayName}
-                    onChange={(e) => {
-                      setDisplayName(e.target.value);
-                      if (error) setError(null);
-                    }}
-                    className="mt-1.5 w-full rounded-md border border-border bg-chalk px-3.5 py-2.5 text-sm font-medium text-ink placeholder:text-muted-foreground/60 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass"
-                    disabled={joinMutation.isPending}
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Shown to other circle members on the rotation ring and payout board.
-                  </p>
-                </div>
 
                 <button
                   onClick={() => void handleTakeSeat()}

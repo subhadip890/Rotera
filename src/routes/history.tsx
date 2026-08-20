@@ -1,11 +1,10 @@
 
 import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { formatAmount } from "@/lib/rotera";
+import { formatAmount, formatCycleDuration } from "@/lib/rotera";
 import {
   useCircleState,
   useUserCircles,
-  useCircleMemberNames,
   useSupabaseCircleEvents,
   stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
@@ -56,10 +55,6 @@ function History() {
 
   // Load state from Stellar Testnet contract
   const { data: circle, isLoading, isError } = useCircleState(effectiveCircleId);
-
-  // Load member display names from Supabase
-  const { data: memberNames } = useCircleMemberNames(effectiveCircleId);
-  const namesByAddress = memberNames || new Map<string, string>();
 
   // Load event audit log from Supabase
   const { data: supabaseEvents } = useSupabaseCircleEvents(effectiveCircleId);
@@ -141,7 +136,7 @@ function History() {
     }).length;
     return {
       addr,
-      name: namesByAddress.get(addr) || truncateAddr(addr),
+      name: truncateAddr(addr),
       onTime: onTimeCycles,
       lateCount: ms?.missed_cycles ?? 0,
       debt: ms?.debt ?? BigInt(0),
@@ -152,14 +147,7 @@ function History() {
   // Closed cycles = history
   const closedCycles = circle.cycles.filter((c) => c.closed);
 
-  const cadenceLabel =
-    circle.cycle_length_days === 7
-      ? "Weekly"
-      : circle.cycle_length_days === 14
-        ? "Biweekly"
-        : circle.cycle_length_days === 30
-          ? "Monthly"
-          : `${circle.cycle_length_days}-day`;
+  const cadenceLabel = formatCycleDuration(circle.cycle_length_days);
 
   return (
     <div className="mx-auto max-w-4xl px-5 py-12">
@@ -212,7 +200,7 @@ function History() {
         {circle.payout_order.map((addr, i) => {
           const done = i < circle.current_cycle - 1;
           const current = i === circle.current_cycle - 1;
-          const name = namesByAddress.get(addr) || truncateAddr(addr);
+          const name = truncateAddr(addr);
           return (
             <li key={addr} className="flex min-w-24 flex-1 flex-col items-center">
               <div className="flex w-full items-center">
@@ -235,7 +223,7 @@ function History() {
               <span className="num mt-2 text-xs text-muted-foreground">
                 Cycle {i + 1}
               </span>
-              <span className={`text-sm ${current ? "font-semibold" : ""}`}>{name}</span>
+              <span className={`num text-sm ${current ? "font-semibold" : ""}`}>{name}</span>
             </li>
           );
         })}
@@ -261,7 +249,7 @@ function History() {
                 : "—";
             const paidCount = Array.from(c.contributions.values()).filter(Boolean).length;
             const missedCount = circle.member_count - paidCount;
-            const recipientName = namesByAddress.get(c.recipient) || truncateAddr(c.recipient);
+            const recipientName = truncateAddr(c.recipient);
 
             return (
               <li
@@ -271,7 +259,7 @@ function History() {
                 <span className="num w-16 text-sm text-muted-foreground">
                   Cycle {c.cycle_number}
                 </span>
-                <span className="font-medium">{recipientName}</span>
+                <span className="num font-medium">{recipientName}</span>
                 <span className="num ml-auto text-lg">{formatAmount(amountXlm)} XLM</span>
                 <span className="num w-28 text-right text-sm text-muted-foreground">
                   {dateStr}
@@ -303,7 +291,7 @@ function History() {
         <tbody>
           {members.map((m) => (
             <tr key={m.addr} className="border-b border-border/60 last:border-0">
-              <td className="px-5 py-3.5 font-medium">{m.name}</td>
+              <td className="num px-5 py-3.5 font-medium">{m.name}</td>
               <td className="num px-5 py-3.5">{m.onTime}</td>
               <td
                 className={`num px-5 py-3.5 ${m.lateCount > 0 ? "text-rust" : "text-muted-foreground"}`}

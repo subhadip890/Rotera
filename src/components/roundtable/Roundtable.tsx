@@ -32,6 +32,18 @@ function seatFill(status: SeatStatus) {
   return "transparent";
 }
 
+function formatSeatLabel(name: string): string {
+  if (!name) return "";
+  if (name.length <= 13) return name;
+  return `${name.slice(0, 11)}…`;
+}
+
+function formatCenterLabel(name: string): string {
+  if (!name) return "—";
+  if (name.length <= 16) return name;
+  return `${name.slice(0, 14)}…`;
+}
+
 export function Roundtable({
   seats,
   currentSeat,
@@ -184,7 +196,7 @@ export function Roundtable({
                   fontFamily="Public Sans, sans-serif"
                   fontWeight={isCurrent ? 600 : 400}
                 >
-                  {seat.name}
+                  {formatSeatLabel(seat.name)}
                 </text>
               )}
             </g>
@@ -211,10 +223,16 @@ export function Roundtable({
           y={cy + 20}
           textAnchor="middle"
           fill={COLORS.ink}
-          fontSize="22"
+          fontSize={
+            currentSeat >= 0 && (seats[currentSeat]?.name?.length ?? 0) > 10
+              ? "17"
+              : "22"
+          }
           fontFamily="IBM Plex Mono, monospace"
         >
-          {currentSeat >= 0 ? (seats[currentSeat]?.name ?? "—") : "Filling"}
+          {currentSeat >= 0
+            ? formatCenterLabel(seats[currentSeat]?.name ?? "—")
+            : "Filling"}
         </text>
         </>
         )}

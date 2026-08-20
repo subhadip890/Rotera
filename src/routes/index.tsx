@@ -6,7 +6,6 @@ import { useRotera } from "@/store/useRotera";
 import {
   useCircleState,
   useUserCircles,
-  useCircleMemberNames,
   stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
 import { useIllustrativeRotation } from "@/hooks/useIllustrativeRotation";
@@ -62,8 +61,6 @@ function Landing() {
     : null;
 
   const { data: circle, isLoading: isCircleLoading, isError } = useCircleState(targetId);
-  const { data: memberNames } = useCircleMemberNames(targetId);
-  const namesByAddress = memberNames || new Map<string, string>();
 
   // State 2: Real circle query is actively in-flight
   const isQueryLoading =
@@ -102,7 +99,7 @@ function Landing() {
           name: isMe
             ? "You"
             : addr
-              ? (namesByAddress.get(addr) ?? `${addr.slice(0, 5)}…${addr.slice(-4)}`)
+              ? `${addr.slice(0, 5)}…${addr.slice(-4)}`
               : `Seat ${i + 1}`,
           status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
         };

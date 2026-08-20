@@ -33,6 +33,7 @@ export function useIllustrativeRotation(enabled: boolean = true) {
       mq.addEventListener?.("change", handler);
       return () => mq.removeEventListener?.("change", handler);
     }
+    return undefined;
   }, []);
 
   useEffect(() => {
@@ -53,13 +54,13 @@ export function useIllustrativeRotation(enabled: boolean = true) {
         status: i === 0 ? ("paid" as const) : ("waiting" as const),
       })),
       currentSeat: 0,
-      caption: CAPTIONS[0],
+      caption: CAPTIONS[0] || "Everybody pays in.",
     };
   }
 
   const currentSeat = step % 6;
   const lap = Math.floor(step / 6);
-  const caption = CAPTIONS[lap % CAPTIONS.length];
+  const caption = CAPTIONS[lap % CAPTIONS.length] || CAPTIONS[0] || "Everybody pays in.";
 
   const seats: Seat[] = ILLUSTRATIVE_NAMES.map((name, i) => {
     let status: "paid" | "waiting" | "late" = "waiting";
