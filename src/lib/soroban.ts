@@ -565,14 +565,18 @@ export async function submitCreateCircle(params: {
     tx_hash: txHash,
   });
 
-  recordCircleEventToSupabase({
-    circle_id: circleId,
-    event_type: "circle_created",
-    wallet_address: userAddress,
-    amount_xlm: stroopsToXlm(params.contributionAmount),
-    tx_hash: txHash,
-    details: { member_count: params.memberCount, cadence_days: params.cycleLengthDays },
-  });
+  try {
+    await recordCircleEventToSupabase({
+      circle_id: circleId,
+      event_type: "circle_created",
+      wallet_address: userAddress,
+      amount_xlm: stroopsToXlm(params.contributionAmount),
+      tx_hash: txHash,
+      details: { member_count: params.memberCount, cadence_days: params.cycleLengthDays },
+    });
+  } catch (logErr) {
+    console.warn("[Supabase create_circle log non-fatal error]:", logErr);
+  }
 
   return { circleId, txHash };
 }
@@ -713,7 +717,10 @@ export async function getMemberCirclesOnChain(userAddress: string): Promise<numb
 /**
  * Join a circle on-chain (pays deposit from member wallet to contract).
  */
-export async function submitJoinCircle(circleId: string | number): Promise<{ txHash: string }> {
+export async function submitJoinCircle(
+  circleId: string | number,
+  depositAmountXlm?: number,
+): Promise<{ txHash: string }> {
   const userAddress = await connectFreighter();
   const sdk = await getSdk();
 
@@ -729,12 +736,17 @@ export async function submitJoinCircle(circleId: string | number): Promise<{ txH
     tx_hash: txHash,
   });
 
-  recordCircleEventToSupabase({
-    circle_id: String(circleId),
-    event_type: "circle_joined",
-    wallet_address: userAddress,
-    tx_hash: txHash,
-  });
+  try {
+    await recordCircleEventToSupabase({
+      circle_id: String(circleId),
+      event_type: "circle_joined",
+      wallet_address: userAddress,
+      amount_xlm: depositAmountXlm ?? null,
+      tx_hash: txHash,
+    });
+  } catch (logErr) {
+    console.warn("[Supabase join_circle log non-fatal error]:", logErr);
+  }
 
   return { txHash };
 }
@@ -745,6 +757,7 @@ export async function submitJoinCircle(circleId: string | number): Promise<{ txH
 export async function submitContribute(
   circleId: string | number,
   cycleNumber: number,
+  amountXlm?: number,
 ): Promise<{ txHash: string }> {
   const userAddress = await connectFreighter();
   const sdk = await getSdk();
@@ -755,20 +768,39 @@ export async function submitContribute(
   const signedXdr = await signStellarTx(txXdr, NETWORK_PASSPHRASE);
   const txHash = await submitAndConfirmTransaction(signedXdr);
 
+  // Authoritative contribution amount in XLM
+  let resolvedAmountXlm = amountXlm;
+  if (resolvedAmountXlm === undefined || resolvedAmountXlm === null) {
+    try {
+      const circle = await getCircleStateOnChain(circleId);
+      if (circle?.contribution_amount) {
+        resolvedAmountXlm = stroopsToXlm(circle.contribution_amount);
+      }
+    } catch {
+      // Non-fatal fallback
+    }
+  }
+
   trackEvent("contribution_confirmed", {
     circle_id: String(circleId),
     cycle_number: cycleNumber,
     address: userAddress,
+    amount_xlm: resolvedAmountXlm,
     tx_hash: txHash,
   });
 
-  recordCircleEventToSupabase({
-    circle_id: String(circleId),
-    event_type: "contribution",
-    wallet_address: userAddress,
-    tx_hash: txHash,
-    details: { cycle_number: cycleNumber },
-  });
+  try {
+    await recordCircleEventToSupabase({
+      circle_id: String(circleId),
+      event_type: "contribution",
+      wallet_address: userAddress,
+      amount_xlm: resolvedAmountXlm ?? null,
+      tx_hash: txHash,
+      details: { cycle_number: cycleNumber },
+    });
+  } catch (logErr) {
+    console.warn("[Supabase contribution log non-fatal error]:", logErr);
+  }
 
   return { txHash };
 }
@@ -780,6 +812,7 @@ export async function submitContribute(
 export async function submitCloseCycle(
   circleId: string | number,
   cycleNumber: number,
+  payoutAmountXlm?: number,
 ): Promise<{ txHash: string }> {
   const userAddress = await connectFreighter();
   const sdk = await getSdk();
@@ -796,16 +829,22 @@ export async function submitCloseCycle(
   trackEvent("cycle_closed", {
     circle_id: String(circleId),
     cycle_number: cycleNumber,
+    amount_xlm: payoutAmountXlm,
     tx_hash: txHash,
   });
 
-  recordCircleEventToSupabase({
-    circle_id: String(circleId),
-    event_type: "cycle_closed",
-    wallet_address: userAddress,
-    tx_hash: txHash,
-    details: { cycle_number: cycleNumber },
-  });
+  try {
+    await recordCircleEventToSupabase({
+      circle_id: String(circleId),
+      event_type: "cycle_closed",
+      wallet_address: userAddress,
+      amount_xlm: payoutAmountXlm ?? null,
+      tx_hash: txHash,
+      details: { cycle_number: cycleNumber },
+    });
+  } catch (logErr) {
+    console.warn("[Supabase close_cycle log non-fatal error]:", logErr);
+  }
 
   return { txHash };
 }
@@ -815,6 +854,7 @@ export async function submitCloseCycle(
  */
 export async function submitWithdrawDeposit(
   circleId: string | number,
+  depositAmountXlm?: number,
 ): Promise<{ txHash: string }> {
   const userAddress = await connectFreighter();
   const sdk = await getSdk();
@@ -825,18 +865,36 @@ export async function submitWithdrawDeposit(
   const signedXdr = await signStellarTx(txXdr, NETWORK_PASSPHRASE);
   const txHash = await submitAndConfirmTransaction(signedXdr);
 
+  let resolvedDepositXlm = depositAmountXlm;
+  if (resolvedDepositXlm === undefined || resolvedDepositXlm === null) {
+    try {
+      const circle = await getCircleStateOnChain(circleId);
+      if (circle?.deposit_amount) {
+        resolvedDepositXlm = stroopsToXlm(circle.deposit_amount);
+      }
+    } catch {
+      // Non-fatal fallback
+    }
+  }
+
   trackEvent("deposit_withdrawn", {
     circle_id: String(circleId),
     address: userAddress,
+    amount_xlm: resolvedDepositXlm,
     tx_hash: txHash,
   });
 
-  recordCircleEventToSupabase({
-    circle_id: String(circleId),
-    event_type: "deposit_withdrawn",
-    wallet_address: userAddress,
-    tx_hash: txHash,
-  });
+  try {
+    await recordCircleEventToSupabase({
+      circle_id: String(circleId),
+      event_type: "deposit_withdrawn",
+      wallet_address: userAddress,
+      amount_xlm: resolvedDepositXlm ?? null,
+      tx_hash: txHash,
+    });
+  } catch (logErr) {
+    console.warn("[Supabase withdraw_deposit log non-fatal error]:", logErr);
+  }
 
   return { txHash };
 }
@@ -883,13 +941,17 @@ export async function submitRepayDebt(
     tx_hash: txHash,
   });
 
-  recordCircleEventToSupabase({
-    circle_id: String(circleId),
-    event_type: "debt_repaid",
-    wallet_address: userAddress,
-    amount_xlm: stroopsToXlm(amountStroops),
-    tx_hash: txHash,
-  });
+  try {
+    await recordCircleEventToSupabase({
+      circle_id: String(circleId),
+      event_type: "debt_repaid",
+      wallet_address: userAddress,
+      amount_xlm: stroopsToXlm(amountStroops),
+      tx_hash: txHash,
+    });
+  } catch (logErr) {
+    console.warn("[Supabase repay_debt log non-fatal error]:", logErr);
+  }
 
   return { txHash };
 }

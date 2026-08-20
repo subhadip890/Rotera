@@ -62,7 +62,8 @@ function JoinCircle() {
 
     setIsSubmitting(true);
     try {
-      const res = await joinMutation.mutateAsync({ circleId });
+      const depositXlm = circle ? stroopsToXlm(circle.deposit_amount) : undefined;
+      const res = await joinMutation.mutateAsync({ circleId, depositAmountXlm: depositXlm });
       setTxHash(res.txHash);
       setJoined(true);
       setActiveCircleId(circleId); // persist for dashboard use

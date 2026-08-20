@@ -246,6 +246,7 @@ function CircleDashboard() {
       await contributeMutation.mutateAsync({
         circleId: effectiveCircleId,
         cycleNumber: circle!.current_cycle,
+        amountXlm: contributionXlm,
       });
     } catch (err: any) {
       setPayError(mapSorobanError(err));
@@ -287,7 +288,10 @@ function CircleDashboard() {
     setPayError(null);
     setIsSubmitting(true);
     try {
-      await withdrawMutation.mutateAsync({ circleId: effectiveCircleId });
+      await withdrawMutation.mutateAsync({
+        circleId: effectiveCircleId,
+        depositAmountXlm: circle ? stroopsToXlm(circle.deposit_amount) : undefined,
+      });
     } catch (err: any) {
       setPayError(mapSorobanError(err));
     } finally {

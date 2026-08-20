@@ -139,7 +139,13 @@ export function useJoinCircleMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ circleId }: { circleId: string | number }) => submitJoinCircle(circleId),
+    mutationFn: ({
+      circleId,
+      depositAmountXlm,
+    }: {
+      circleId: string | number;
+      depositAmountXlm?: number | undefined;
+    }) => submitJoinCircle(circleId, depositAmountXlm),
     onSuccess: (_, variables) => {
       const cid = String(variables.circleId);
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
@@ -162,8 +168,15 @@ export function useContributeMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ circleId, cycleNumber }: { circleId: string | number; cycleNumber: number }) =>
-      submitContribute(circleId, cycleNumber),
+    mutationFn: ({
+      circleId,
+      cycleNumber,
+      amountXlm,
+    }: {
+      circleId: string | number;
+      cycleNumber: number;
+      amountXlm?: number | undefined;
+    }) => submitContribute(circleId, cycleNumber, amountXlm),
     onSuccess: (_, variables) => {
       const cid = String(variables.circleId);
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
@@ -189,12 +202,14 @@ export function useCloseCycleMutation() {
     mutationFn: ({
       circleId,
       cycleNumber,
+      recipientName,
+      amountXlm,
     }: {
       circleId: string | number;
       cycleNumber: number;
-      recipientName?: string;
-      amountXlm?: number;
-    }) => submitCloseCycle(circleId, cycleNumber),
+      recipientName?: string | undefined;
+      amountXlm?: number | undefined;
+    }) => submitCloseCycle(circleId, cycleNumber, amountXlm),
     onSuccess: (_, variables) => {
       const cid = String(variables.circleId);
       // Show the payout toast using UI-only state
@@ -225,7 +240,13 @@ export function useWithdrawDepositMutation() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ circleId }: { circleId: string | number }) => submitWithdrawDeposit(circleId),
+    mutationFn: ({
+      circleId,
+      depositAmountXlm,
+    }: {
+      circleId: string | number;
+      depositAmountXlm?: number | undefined;
+    }) => submitWithdrawDeposit(circleId, depositAmountXlm),
     onSuccess: (_, variables) => {
       const cid = String(variables.circleId);
       queryClient.invalidateQueries({ queryKey: ["circle", cid] });
