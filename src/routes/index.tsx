@@ -178,7 +178,7 @@ function Landing() {
               </Link>
             </div>
             <p className="mt-6 text-sm text-muted-foreground">
-              Used by seven test circles across Lagos, Chennai and Cape Town during the testnet run.
+              Tested across multiple Stellar Testnet savings circles.
             </p>
           </motion.div>
 

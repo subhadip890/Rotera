@@ -42,7 +42,7 @@ This document compiles the submission evidence, technical verification, on-chain
 
 ## 4. Git Commit History
 
-- **Total Commits**: **61+ commits** (Requirement: 15+ meaningful commits)
+- **Total Commits**: **37+ meaningful commits** (Requirement: 15+ meaningful commits)
 - **Commit History Focus**: Full git history demonstrating architectural design, Rust contract implementation, test suites, UI refinements, error handling, live Testnet validation, telemetry, and documentation.
 
 ---
