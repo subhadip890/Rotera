@@ -12,18 +12,25 @@ export function FeedbackWidget() {
   const [note, setNote] = useState("");
   const { address } = useRotera();
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === null) return;
     setSubmitting(true);
+    setError(null);
 
     try {
-      await submitFeedbackToSupabase({
+      const ok = await submitFeedbackToSupabase({
         wallet_address: address,
         rating,
         comment: note.trim(),
         page: window.location.pathname,
       });
+
+      if (!ok) {
+        throw new Error("Failed to store feedback in database.");
+      }
 
       trackEvent("feedback_submitted", {
         rating,
@@ -32,9 +39,9 @@ export function FeedbackWidget() {
       });
 
       setSent(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error("[Feedback Submit Error]:", err);
-      setSent(true);
+      setError(err?.message || "Could not submit feedback. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -111,6 +118,9 @@ export function FeedbackWidget() {
                   className="mt-1.5 w-full rounded-md border border-input bg-background px-2.5 py-2 text-sm"
                   placeholder="The countdown was confusing…"
                 />
+                {error && (
+                  <p className="mt-2 text-xs font-medium text-destructive">{error}</p>
+                )}
                 <div className="mt-3 flex gap-2">
                   <button
                     type="submit"

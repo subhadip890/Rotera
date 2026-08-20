@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { Roundtable } from "@/components/roundtable/Roundtable";
+import { useRotera } from "@/store/useRotera";
+import { useCircleState, stroopsToXlm } from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,6 +34,51 @@ const HERO_SEATS = [
 ];
 
 function Landing() {
+  const { activeCircleId, address } = useRotera();
+  const targetId = activeCircleId || "2"; // Default to active or live contract circle 2
+  const { data: circle } = useCircleState(targetId);
+
+  // Build dynamic seats matching exact on-chain circle structure
+  const seats = circle
+    ? Array.from({ length: circle.member_count }, (_, i) => {
+        if (i < circle.payout_order.length) {
+          const addr = circle.payout_order[i] || "";
+          const ms = addr ? circle.member_states.get(addr) : undefined;
+          const cycleIdx = circle.current_cycle - 1;
+          const currentCycleRecord =
+            circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
+          const paid = addr && currentCycleRecord ? (currentCycleRecord.contributions.get(addr) ?? false) : false;
+          const isLate = !paid && circle.cycle_deadline > 0 && Date.now() / 1000 > circle.cycle_deadline;
+          const isDefaulted = ms ? ms.missed_cycles > 0 : false;
+          const isMe = Boolean(address && addr === address);
+
+          return {
+            id: addr || `seat-${i}`,
+            name: isMe ? "You" : addr ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : `Seat ${i + 1}`,
+            status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
+          };
+        } else {
+          return {
+            id: `seat-${i}`,
+            name: `Seat ${i + 1}`,
+            status: "waiting" as const,
+          };
+        }
+      })
+    : [
+        { id: "1", name: "Priya", status: "paid" as const },
+        { id: "2", name: "Tunde", status: "paid" as const },
+        { id: "3", name: "Mariela", status: "paid" as const },
+        { id: "4", name: "You", status: "waiting" as const },
+        { id: "5", name: "Samir", status: "late" as const },
+        { id: "6", name: "Nomsa", status: "waiting" as const },
+      ];
+
+  const currentSeat = circle ? (circle.current_cycle - 1) % circle.member_count : 3;
+  const caption = circle
+    ? `${circle.name} · cycle ${circle.current_cycle} of ${circle.member_count} · ${stroopsToXlm(circle.contribution_amount)} XLM each`
+    : "Sunday Six · cycle 4 of 6 · 200 XLM each";
+
   return (
     <>
       <section className="relative overflow-hidden">
@@ -84,10 +131,10 @@ function Landing() {
             className="flex justify-center"
           >
             <Roundtable
-              seats={HERO_SEATS}
-              currentSeat={3}
+              seats={seats}
+              currentSeat={currentSeat}
               size={520}
-              caption="Sunday Six · cycle 4 of 6 · 200 XLM each"
+              caption={caption}
             />
           </motion.div>
         </div>

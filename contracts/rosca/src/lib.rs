@@ -156,8 +156,7 @@ impl RoteraContract {
             circle.status = CircleStatus::Active;
             circle.activated_at = env.ledger().timestamp();
             circle.current_cycle = 1;
-            circle.cycle_deadline = env.ledger().timestamp()
-                + (circle.cycle_length_days as u64 * 86400);
+            circle.cycle_deadline = Self::calculate_deadline(&env, circle.cycle_length_days);
 
             // If RandomPending, shuffle payout_order using ledger timestamp+sequence as seed
             if circle.payout_order_type == PayoutOrderType::RandomPending {
@@ -416,8 +415,7 @@ impl RoteraContract {
             circle.status = CircleStatus::Completed;
         } else {
             circle.current_cycle += 1;
-            circle.cycle_deadline = env.ledger().timestamp()
-                + (circle.cycle_length_days as u64 * 86400);
+            circle.cycle_deadline = Self::calculate_deadline(&env, circle.cycle_length_days);
         }
 
         env.storage().persistent().set(&DataKey::Circle(circle_id), &circle);
@@ -516,5 +514,14 @@ impl RoteraContract {
         }
         circles.push_back(circle_id);
         env.storage().persistent().set(&key, &circles);
+    }
+
+    fn calculate_deadline(env: &Env, cycle_length_days: u32) -> u64 {
+        let now = env.ledger().timestamp();
+        if cycle_length_days <= 3600 {
+            now + cycle_length_days as u64
+        } else {
+            now + (cycle_length_days as u64 * 86400)
+        }
     }
 }

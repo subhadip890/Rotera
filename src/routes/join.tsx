@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/join")({
   head: () => ({
@@ -11,10 +11,18 @@ export const Route = createFileRoute("/join")({
       },
     ],
   }),
-  component: JoinIndex,
+  component: JoinLayout,
 });
 
-function JoinIndex() {
+function JoinLayout() {
+  const childMatches = useChildMatches();
+
+  if (childMatches.length > 0) {
+    return <Outlet />;
+  }
+
+  const host = typeof window !== "undefined" ? window.location.host : "rotera.app";
+
   return (
     <div className="mx-auto max-w-xl px-5 py-20 text-center">
       <h1 className="text-3xl font-semibold">Open your invite link</h1>
@@ -22,7 +30,7 @@ function JoinIndex() {
         Your circle organiser sent you a link that looks like:
       </p>
       <p className="num mt-4 rounded-md bg-chalk px-4 py-3 text-sm text-muted-foreground">
-        rotera.app/join/<span className="text-ink">123</span>
+        {host}/join/<span className="text-ink">1</span>
       </p>
       <p className="mt-4 text-muted-foreground">
         Open that link to see the circle details and claim your seat.

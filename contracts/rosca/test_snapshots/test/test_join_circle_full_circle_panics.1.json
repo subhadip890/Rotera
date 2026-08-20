@@ -796,7 +796,7 @@
                         "symbol": "cycle_deadline"
                       },
                       "val": {
-                        "u64": 604800
+                        "u64": 7
                       }
                     },
                     {

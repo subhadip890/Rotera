@@ -110,37 +110,49 @@ function Dashboard() {
 
   if (!circle) return null;
 
-  // Map on-chain members to display format
-  const members = circle.payout_order.map((addr, i) => {
-    const ms = circle.member_states.get(addr);
-    const cycleIdx = circle.current_cycle - 1;
-    const currentCycleRecord =
-      circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
-    const paid = currentCycleRecord?.contributions.get(addr) ?? false;
-    const isLate = !paid && now !== null && now / 1000 > circle.cycle_deadline;
+  // Map on-chain members & seats to display format based on exact circle.member_count
+  const seats = Array.from({ length: circle.member_count }, (_, i) => {
+    if (i < circle.payout_order.length) {
+      const addr = circle.payout_order[i] || "";
+      const ms = addr ? circle.member_states.get(addr) : undefined;
+      const cycleIdx = circle.current_cycle - 1;
+      const currentCycleRecord =
+        circle.cycles.length > cycleIdx ? circle.cycles[cycleIdx] : null;
+      const paid = addr && currentCycleRecord ? (currentCycleRecord.contributions.get(addr) ?? false) : false;
+      const isLate = !paid && now !== null && circle.cycle_deadline > 0 && now / 1000 > circle.cycle_deadline;
+      const isDefaulted = ms ? ms.missed_cycles > 0 : false;
 
-    return {
-      id: addr,
-      name: truncateAddr(addr),
-      address: truncateAddr(addr),
-      status: paid ? ("paid" as const) : isLate ? ("late" as const) : ("waiting" as const),
-      onTime: ms ? (circle.cycles.length - ms.missed_cycles) : 0,
-      lateCount: ms?.missed_cycles ?? 0,
-      debt: ms?.debt ?? BigInt(0),
-    };
+      const isMe = Boolean(address && addr === address);
+      const name = isMe ? "You" : truncateAddr(addr);
+
+      return {
+        id: addr,
+        name,
+        address: truncateAddr(addr),
+        status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
+        onTime: ms ? (circle.cycles.length - ms.missed_cycles) : 0,
+        lateCount: ms?.missed_cycles ?? 0,
+        debt: ms?.debt ?? BigInt(0),
+      };
+    } else {
+      return {
+        id: `seat-${i}`,
+        name: `Seat ${i + 1}`,
+        address: `Seat ${i + 1}`,
+        status: "waiting" as const,
+        onTime: 0,
+        lateCount: 0,
+        debt: BigInt(0),
+      };
+    }
   });
 
+  const members = seats.filter((s) => s.id && !s.id.startsWith("seat-"));
   const currentSeat = (circle.current_cycle - 1) % circle.member_count;
-  const recipient = members[currentSeat];
+  const recipient = seats[currentSeat];
   const isMyTurn = recipient?.id === address;
   const you = address ? members.find((m) => m.id === address) : null;
   const paidCount = members.filter((m) => m.status === "paid").length;
-
-  const seats = members.map((m) => ({
-    id: m.id,
-    name: m.name,
-    status: m.status,
-  }));
 
   const cutoffMs = circle.cycle_deadline * 1000; // convert from seconds
   const contributionXlm = stroopsToXlm(circle.contribution_amount);
