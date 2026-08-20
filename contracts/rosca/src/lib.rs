@@ -2,6 +2,8 @@
 
 mod types;
 mod errors;
+#[cfg(test)]
+mod test;
 
 pub use types::*;
 pub use errors::*;

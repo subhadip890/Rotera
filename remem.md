@@ -48,6 +48,7 @@ Rotera is an on-chain rotating savings circle (ROSCA) app on Stellar/Soroban. It
 - `get_status(circle_id)` — returns full CircleState
 - `withdraw_deposit(member, circle_id)` — after completion, if no debt
 - Types: CircleState, MemberState, CycleRecord, CircleStatus, PayoutOrderType
+- Tests: 14 unit tests in `src/test.rs` covering creation, validation, activation, contribution, missed payments, full rotation, and deposit withdrawal (all 14 passed).
 
 ## Environment Variables Needed
 - `VITE_SOROBAN_CONTRACT_ID` — deployed contract address

@@ -22,7 +22,7 @@ fn setup_env() -> (Env, Address, Vec<Address>) {
     (env, organizer, members)
 }
 
-fn deploy_contract(env: &Env) -> RoteraContractClient {
+fn deploy_contract(env: &Env) -> RoteraContractClient<'_> {
     let contract_id = env.register(RoteraContract, ());
     RoteraContractClient::new(env, &contract_id)
 }
