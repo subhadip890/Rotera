@@ -23,7 +23,7 @@ ROTera is an on-chain rotating savings circle (ROSCA) platform built on Stellar 
 | **Target Blockchain Network** | Stellar Testnet | RPC: `soroban-testnet.stellar.org` |
 | **Verified Smart Contract** | `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ` | [Stellar Expert Explorer](https://stellar.expert/explorer/testnet/contract/CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ) |
 | **Contract Unit Test Suite** | 47 passed; 0 failed | Cargo test suite (`contracts/rosca`) |
-| **Commit History** | 40 meaningful commits | `main` branch |
+| **Commit History** | 41 meaningful commits | `main` branch |
 | **Unique Interacting Wallets** | 12 unique wallets | On-chain contract event logs |
 | **Verified Testnet Events** | 50 confirmed transactions | On-chain transaction records |
 | **Matched Feedback Testers** | 10 unique testers | 100% matched to on-chain activity |
@@ -45,7 +45,7 @@ ROTera is an on-chain rotating savings circle (ROSCA) platform built on Stellar 
 | **Wallet Interaction Proof** | 50 real Stellar Testnet transactions logged on-chain across Circles #10–#16 | [Wallet Proof](#wallet-interaction-evidence) |
 | **Feedback Collection** | In-app feedback drawer with 12 real submissions (average rating 4.92 / 5.0) | [Feedback Proof](#user-feedback-evidence) |
 | **Public Repository** | Clean, structured, well-documented repository on GitHub | [GitHub Repo](https://github.com/subhadip890/Rotera.git) |
-| **15+ Meaningful Commits** | 40 clean engineering commits across contract, frontend, and telemetry | `git log` |
+| **15+ Meaningful Commits** | 41 clean engineering commits across contract, frontend, and telemetry | `git log` |
 | **Product UI Evidence** | High-fidelity screenshots of landing, creation, dashboard, and history views | [Product Preview](#product-preview) |
 | **Monitoring & Analytics** | Integrated Sentry error monitoring and PostHog product telemetry | `src/lib/sentry.ts`, `src/lib/posthog.ts` |
 
@@ -58,8 +58,8 @@ ROTera is an on-chain rotating savings circle (ROSCA) platform built on Stellar 
   <img src="docs/screenshots/02-create-circle.png" width="48%" alt="Create Circle Page" />
 </p>
 <p align="center">
-  <img src="docs/screenshots/04-circle-dashboard.png" width="48%" alt="Active Circle Dashboard" />
-  <img src="docs/screenshots/05-history.png" width="48%" alt="History & Audit Log" />
+  <img src="docs/screenshots/04-circle-dashboard.png" width="48%" alt="My Circles Page" />
+  <img src="docs/screenshots/05-history.png" width="48%" alt="History Page" />
 </p>
 
 ### Mobile Experience

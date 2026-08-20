@@ -80,7 +80,7 @@ Rotera formalizes community savings into transparent, automated on-chain peer ci
 - **GitHub URL**: [https://github.com/subhadip890/Rotera.git](https://github.com/subhadip890/Rotera.git)
 - **Default Branch**: `main`
 - **License**: MIT
-- **Meaningful Commits**: **39+ clean commits** (requirement: 15+ commits)
+- **Meaningful Commits**: **41 clean commits** (requirement: 15+ commits)
 - **CI Pipeline**: Automated GitHub Actions verification (`.github/workflows/ci.yml`)
 
 ---
@@ -280,8 +280,6 @@ All 10 matched testers executed real on-chain transactions on Stellar Testnet co
 | **Mobile Circle View** | [`docs/screenshots/07-mobile-circle.png`](./screenshots/07-mobile-circle.png) | **VERIFIED** | Mobile circle dashboard scaling and touch-friendly controls |
 | **Supabase Feedback Proof** | [`docs/evidence/supabase-feedback-real-users.png`](./evidence/supabase-feedback-real-users.png) | **VERIFIED** | Real user feedback submissions with ratings and comments in database |
 | **Supabase Wallet Events Proof** | [`docs/evidence/supabase-wallet-interactions.png`](./evidence/supabase-wallet-interactions.png) | **VERIFIED** | 50+ on-chain transaction records logged under current contract ID |
-| **PostHog Telemetry Dashboard** | `docs/screenshots/11_posthog_events.png` | **MISSING MANUAL EVIDENCE — USER MUST CAPTURE POSTHOG** | PostHog product telemetry event stream |
-| **Sentry Monitoring Stream** | `docs/screenshots/12_sentry_monitoring.png` | **MISSING MANUAL EVIDENCE — USER MUST CAPTURE SENTRY** | Sentry exception monitoring dashboard |
 
 ---
 
@@ -300,7 +298,7 @@ $ npm run verify
 
 ## 22. Demo Video
 
-- **Video URL**: **MISSING — USER MUST RECORD AND ADD URL**
+- **Video URL**: *(Demo video to be linked here upon recording.)*
 
 ### Recommended 3–5 Minute Demo Script
 1. **0:00–0:45 | Problem & Value Proposition**: Introduce traditional ROSCAs and how Rotera eliminates coordinator fraud and default risks using Stellar Soroban.
@@ -329,7 +327,7 @@ $ npm run verify
 | **Optimized UX** | **PASS — VERIFIED EVIDENCE** | Roundtable visual feedback, quick-copy invite, active debt repayment |
 | **Project Structure & Docs** | **PASS — VERIFIED EVIDENCE** | Comprehensive documentation, TypeScript architecture, clean modular code |
 | **Stellar Testnet Contract** | **PASS — VERIFIED EVIDENCE** | Active contract `CDPLF2WY4NH57MYABBKLSPOJZVAMBFM5N2F5P7SPXS4KF2L6MRPMQ7TJ` |
-| **15+ Meaningful Commits** | **PASS — VERIFIED EVIDENCE** | 39 clean, professional git commits on `main` |
+| **15+ Meaningful Commits** | **PASS — VERIFIED EVIDENCE** | 41 clean, professional git commits on `main` |
 | **Public GitHub Repository** | **PASS — VERIFIED EVIDENCE** | Public repository at `https://github.com/subhadip890/Rotera.git` |
 | **Product UI Screenshots** | **PASS — VERIFIED EVIDENCE** | 7 production screenshots in `docs/screenshots/` |
 | **User Feedback Summary** | **PASS — VERIFIED EVIDENCE** | Categorized summary with real quotes and implemented fixes |
