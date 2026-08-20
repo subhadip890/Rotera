@@ -6,6 +6,7 @@
  * Zustand is only used for UI state (wallet, onboarding, modals).
  */
 
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCircleStateOnChain,
@@ -20,7 +21,12 @@ import {
   stroopsToXlm,
   xlmToStroops,
 } from "@/lib/soroban";
-import { fetchCircleEventsFromSupabase } from "@/lib/supabase";
+import {
+  fetchCircleEventsFromSupabase,
+  fetchCircleMemberNames,
+  subscribeCircleMemberNames,
+  subscribeCircleEvents,
+} from "@/lib/supabase";
 import { captureException } from "@/lib/sentry";
 import { useRotera } from "@/store/useRotera";
 
@@ -32,14 +38,30 @@ export { stroopsToXlm, xlmToStroops };
 
 /**
  * Fetch and cache on-chain circle state.
- * Returns null if contract not configured or circle not found.
+ * Listens to Supabase realtime circle_events for instant invalidation (<1s),
+ * with a 15s poll fallback when Supabase is not configured.
  */
 export function useCircleState(circleId: string | number | null | undefined) {
+  const queryClient = useQueryClient();
+  const cid = circleId ? String(circleId) : null;
+
+  useEffect(() => {
+    if (!cid || cid === "sunday-six" || cid === "demo") return;
+
+    // Realtime Supabase event listener: invalidates circle state immediately upon on-chain events
+    const unsub = subscribeCircleEvents(cid, () => {
+      queryClient.invalidateQueries({ queryKey: ["circle", cid] });
+      queryClient.invalidateQueries({ queryKey: ["supabaseCircleEvents", cid] });
+    });
+
+    return () => unsub();
+  }, [cid, queryClient]);
+
   return useQuery({
-    queryKey: ["circle", String(circleId)],
+    queryKey: ["circle", cid],
     queryFn: () => getCircleStateOnChain(circleId!),
-    enabled: !!circleId && circleId !== "sunday-six" && circleId !== "demo",
-    refetchInterval: 15_000,   // poll every 15s — not too aggressive
+    enabled: !!cid && cid !== "sunday-six" && cid !== "demo",
+    refetchInterval: 15_000,   // poll every 15s as fallback
     staleTime: 8_000,
     retry: 2,
   });
@@ -65,6 +87,31 @@ export function useSupabaseCircleEvents(circleId: string | number | null | undef
     queryKey: ["supabaseCircleEvents", String(circleId)],
     queryFn: () => fetchCircleEventsFromSupabase(circleId),
     staleTime: 5_000,
+  });
+}
+
+/**
+ * Fetch and live-subscribe to member display names for a circle from Supabase.
+ */
+export function useCircleMemberNames(circleId: string | number | null | undefined) {
+  const queryClient = useQueryClient();
+  const cid = circleId ? String(circleId) : null;
+
+  useEffect(() => {
+    if (!cid || cid === "sunday-six" || cid === "demo") return;
+
+    const unsub = subscribeCircleMemberNames(cid, (updatedMap) => {
+      queryClient.setQueryData(["circleMemberNames", cid], updatedMap);
+    });
+
+    return () => unsub();
+  }, [cid, queryClient]);
+
+  return useQuery({
+    queryKey: ["circleMemberNames", cid],
+    queryFn: () => fetchCircleMemberNames(cid),
+    enabled: !!cid && cid !== "sunday-six" && cid !== "demo",
+    staleTime: 30_000,
   });
 }
 

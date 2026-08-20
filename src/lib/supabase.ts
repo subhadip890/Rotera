@@ -1,3 +1,31 @@
+/**
+ * SQL MIGRATION: Paste into Supabase SQL Editor to support member display names and realtime events:
+ * 
+ * -- Table: circle_member_names
+ * create table if not exists circle_member_names (
+ *   circle_id text not null,
+ *   wallet_address text not null,
+ *   display_name text not null,
+ *   created_at timestamptz default now(),
+ *   primary key (circle_id, wallet_address)
+ * );
+ * 
+ * alter table circle_member_names enable row level security;
+ * 
+ * create policy "Allow public select on circle_member_names"
+ *   on circle_member_names for select using (true);
+ * 
+ * create policy "Allow public insert on circle_member_names"
+ *   on circle_member_names for insert with check (true);
+ * 
+ * create policy "Allow public update on circle_member_names"
+ *   on circle_member_names for update using (true);
+ * 
+ * -- Enable Realtime replication for circle_member_names and circle_events:
+ * alter publication supabase_realtime add table circle_member_names;
+ * alter publication supabase_realtime add table circle_events;
+ */
+
 import { createClient } from '@supabase/supabase-js'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
@@ -138,4 +166,163 @@ export async function fetchCircleEventsFromSupabase(circleId?: string | number |
     return [];
   }
 }
+
+/**
+ * Subscribe to realtime circle events from Supabase.
+ * Triggers onEvent callback whenever a new event is inserted for the given circle.
+ */
+export function subscribeCircleEvents(
+  circleId: string | number | null | undefined,
+  onEvent: (event: CircleEventRecord) => void,
+): () => void {
+  if (!supabase || !circleId) return () => {};
+
+  try {
+    const channel = supabase
+      .channel(`circle_events_${circleId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'circle_events',
+          filter: `circle_id=eq.${String(circleId)}`,
+        },
+        (payload) => {
+          if (payload.new) {
+            onEvent(payload.new as CircleEventRecord);
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch (err) {
+    console.warn('[Rotera Supabase Event Subscribe] Error:', err);
+    return () => {};
+  }
+}
+
+// ─── Circle Member Display Names ─────────────────────────────────────────────
+
+export interface CircleMemberNameRecord {
+  circle_id: string;
+  wallet_address: string;
+  display_name: string;
+  created_at?: string;
+}
+
+/**
+ * Upsert a member's display name for a specific circle.
+ * Rejects empty names or names longer than 40 chars.
+ * Never throws — returns true on success, false on failure/null client.
+ */
+export async function upsertCircleMemberName(
+  circleId: string | number,
+  walletAddress: string,
+  displayName: string,
+): Promise<boolean> {
+  if (!supabase) return false;
+
+  const trimmed = displayName?.trim();
+  if (!trimmed || trimmed.length > 40 || !circleId || !walletAddress) {
+    return false;
+  }
+
+  try {
+    const { error } = await supabase.from('circle_member_names').upsert(
+      [
+        {
+          circle_id: String(circleId),
+          wallet_address: walletAddress,
+          display_name: trimmed,
+          created_at: new Date().toISOString(),
+        },
+      ],
+      { onConflict: 'circle_id,wallet_address' },
+    );
+
+    if (error) {
+      console.warn('[Rotera Supabase Member Name] Upsert error:', error.message);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('[Rotera Supabase Member Name] Unexpected error:', err);
+    return false;
+  }
+}
+
+/**
+ * Fetch all member display names for a circle.
+ * Returns Map<wallet_address, display_name>.
+ */
+export async function fetchCircleMemberNames(
+  circleId?: string | number | null,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (!supabase || !circleId) return result;
+
+  try {
+    const { data, error } = await supabase
+      .from('circle_member_names')
+      .select('wallet_address, display_name')
+      .eq('circle_id', String(circleId));
+
+    if (error || !data) return result;
+
+    for (const row of data as { wallet_address: string; display_name: string }[]) {
+      if (row.wallet_address && row.display_name) {
+        result.set(row.wallet_address, row.display_name);
+      }
+    }
+
+    return result;
+  } catch (err) {
+    console.warn('[Rotera Supabase Member Name Fetch] Error:', err);
+    return result;
+  }
+}
+
+/**
+ * Live subscription to circle member names via Supabase realtime.
+ * Re-fetches the full name map and calls onChange on any INSERT, UPDATE, or DELETE.
+ * Returns unsubscribe function (no-op if supabase is null).
+ */
+export function subscribeCircleMemberNames(
+  circleId: string | number | null | undefined,
+  onChange: (names: Map<string, string>) => void,
+): () => void {
+  if (!supabase || !circleId) return () => {};
+
+  try {
+    const channel = supabase
+      .channel(`circle_member_names_${circleId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'circle_member_names',
+          filter: `circle_id=eq.${String(circleId)}`,
+        },
+        async () => {
+          const names = await fetchCircleMemberNames(circleId);
+          onChange(names);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  } catch (err) {
+    console.warn('[Rotera Supabase Member Name Subscribe] Error:', err);
+    return () => {};
+  }
+}
+
 

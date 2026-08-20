@@ -2,7 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { useRotera } from "@/store/useRotera";
-import { useCircleState, stroopsToXlm } from "@/hooks/useSorobanQueries";
+import {
+  useCircleState,
+  useCircleMemberNames,
+  stroopsToXlm,
+} from "@/hooks/useSorobanQueries";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,6 +41,8 @@ function Landing() {
   const { activeCircleId, address } = useRotera();
   const targetId = activeCircleId || "2"; // Default to active or live contract circle 2
   const { data: circle } = useCircleState(targetId);
+  const { data: memberNames } = useCircleMemberNames(targetId);
+  const namesByAddress = memberNames || new Map<string, string>();
 
   // Build dynamic seats matching exact on-chain circle structure
   const seats = circle
@@ -54,7 +60,11 @@ function Landing() {
 
           return {
             id: addr || `seat-${i}`,
-            name: isMe ? "You" : addr ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : `Seat ${i + 1}`,
+            name: isMe
+              ? "You"
+              : addr
+                ? (namesByAddress.get(addr) ?? `${addr.slice(0, 5)}…${addr.slice(-4)}`)
+                : `Seat ${i + 1}`,
             status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
           };
         } else {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Roundtable } from "@/components/roundtable/Roundtable";
 import { Onboarding } from "@/components/onboarding/Onboarding";
@@ -8,12 +9,14 @@ import { countdown, formatAmount } from "@/lib/rotera";
 import {
   useCircleState,
   useUserCircles,
+  useCircleMemberNames,
   useContributeMutation,
   useCloseCycleMutation,
   useWithdrawDepositMutation,
   useRepayDebtMutation,
   stroopsToXlm,
 } from "@/hooks/useSorobanQueries";
+import { upsertCircleMemberName } from "@/lib/supabase";
 
 export const Route = createFileRoute("/circle")({
   head: () => ({
@@ -35,6 +38,7 @@ export const Route = createFileRoute("/circle")({
 });
 
 function Dashboard() {
+  const queryClient = useQueryClient();
   const {
     wallet,
     address,
@@ -64,6 +68,10 @@ function Dashboard() {
 
   const { data: circle, isLoading, isError } = useCircleState(effectiveCircleId);
 
+  // Real-time member display names from Supabase
+  const { data: memberNames } = useCircleMemberNames(effectiveCircleId);
+  const namesByAddress = memberNames || new Map<string, string>();
+
   // Auto-persist effectiveCircleId when valid circle loads
   useEffect(() => {
     if (circle && effectiveCircleId) {
@@ -79,6 +87,53 @@ function Dashboard() {
   const [now, setNow] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Edit own display name state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [isSavingName, setIsSavingName] = useState(false);
+
+  async function handleSaveName(e: React.FormEvent) {
+    e.preventDefault();
+    if (!address || !effectiveCircleId) {
+      setNameError("No wallet or active circle connected.");
+      return;
+    }
+    const trimmed = nameInput.trim();
+    if (!trimmed) {
+      setNameError("Please enter your display name.");
+      return;
+    }
+    if (trimmed.length > 40) {
+      setNameError("Display name must be 40 characters or fewer.");
+      return;
+    }
+
+    setIsSavingName(true);
+    setNameError(null);
+
+    try {
+      const success = await upsertCircleMemberName(effectiveCircleId, address, trimmed);
+      if (!success) {
+        setNameError("Could not save name. Check your connection or Supabase config.");
+        setIsSavingName(false);
+        return;
+      }
+
+      // Immediately invalidate and refetch member names query
+      await queryClient.invalidateQueries({
+        queryKey: ["circleMemberNames", effectiveCircleId],
+      });
+
+      setIsSavingName(false);
+      setIsEditingName(false);
+    } catch (err) {
+      console.warn("[Rotera] Failed to save display name:", err);
+      setNameError("Unexpected error saving name. Please try again.");
+      setIsSavingName(false);
+    }
+  }
 
   useEffect(() => {
     setNow(Date.now());
@@ -152,12 +207,13 @@ function Dashboard() {
       const isDefaulted = ms ? ms.missed_cycles > 0 : false;
 
       const isMe = Boolean(address && addr === address);
-      const name = isMe ? "You" : truncateAddr(addr);
+      const memberDisplayName = namesByAddress.get(addr);
+      const name = isMe ? "You" : (memberDisplayName || truncateAddr(addr));
 
       return {
         id: addr,
         name,
-        address: truncateAddr(addr),
+        address: memberDisplayName || truncateAddr(addr),
         status: paid ? ("paid" as const) : (isLate || isDefaulted) ? ("late" as const) : ("waiting" as const),
         onTime: ms ? (circle.cycles.length - ms.missed_cycles) : 0,
         lateCount: ms?.missed_cycles ?? 0,
@@ -541,10 +597,45 @@ function Dashboard() {
                       {String(i + 1).padStart(2, "0")}
                     </span>
                     <span className="font-medium">{m.name}</span>
+                    {namesByAddress.get(m.id) && m.id === address && (
+                      <span className="text-xs text-muted-foreground font-normal">
+                        ({namesByAddress.get(m.id)})
+                      </span>
+                    )}
                     {m.id === address && (
                       <span className="rounded-full bg-verdigris/10 px-2 py-0.5 text-xs text-verdigris">
                         you
                       </span>
+                    )}
+                    {m.id === address && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNameInput(namesByAddress.get(address) || "");
+                          setNameError(null);
+                          setIsEditingName(true);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-md border border-border/80 bg-chalk px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors hover:border-brass hover:text-ink"
+                        title="Edit your display name"
+                        aria-label="Edit your display name"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="11"
+                          height="11"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="size-2.5"
+                        >
+                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                          <path d="m15 5 4 4" />
+                        </svg>
+                        <span>{namesByAddress.has(address) ? "Edit name" : "Set name"}</span>
+                      </button>
                     )}
                     {i === currentSeat && currentSeat >= 0 && (
                       <span className="rounded-full bg-brass/20 px-2 py-0.5 text-xs font-medium text-ink">
@@ -564,6 +655,111 @@ function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Edit Name Modal */}
+      <AnimatePresence>
+        {isEditingName && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4"
+            onClick={() => setIsEditingName(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.94, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.94, y: 10 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="edit-name-title"
+              className="w-full max-w-md rounded-2xl border border-brass/60 bg-chalk p-6 text-left shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <h2 id="edit-name-title" className="text-xl font-semibold">
+                  {namesByAddress.has(address || "") ? "Update your name" : "Set your display name"}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingName(false)}
+                  className="rounded-md p-1 text-muted-foreground hover:bg-parchment hover:text-ink"
+                  aria-label="Close"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="mt-2 text-sm text-muted-foreground">
+                This name will be shown to other members of this circle on the rotation ring and payout record.
+              </p>
+
+              <form onSubmit={handleSaveName} className="mt-5">
+                <label
+                  htmlFor="user-display-name-input"
+                  className="block text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                >
+                  Display name
+                </label>
+                <input
+                  id="user-display-name-input"
+                  type="text"
+                  required
+                  maxLength={40}
+                  autoFocus
+                  placeholder="e.g. Alex, Sarah M., Subhadip"
+                  value={nameInput}
+                  onChange={(e) => {
+                    setNameInput(e.target.value);
+                    if (nameError) setNameError(null);
+                  }}
+                  className="mt-2 w-full rounded-md border border-border bg-chalk px-3.5 py-2.5 text-sm font-medium text-ink placeholder:text-muted-foreground/60 focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass"
+                  disabled={isSavingName}
+                />
+                <p className="mt-1 text-xs text-muted-foreground">1–40 characters.</p>
+
+                {nameError && (
+                  <p role="alert" className="mt-3 rounded-md border border-rust/40 bg-rust/10 p-2.5 text-xs text-rust">
+                    {nameError}
+                  </p>
+                )}
+
+                <div className="mt-6 flex items-center justify-end gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingName(false)}
+                    disabled={isSavingName}
+                    className="rounded-md border border-border px-4 py-2 text-sm font-medium text-ink transition-colors hover:bg-parchment disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingName}
+                    className="rounded-md bg-brass px-5 py-2 text-sm font-semibold text-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    {isSavingName ? "Saving…" : "Save name"}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Payout modal */}
       <AnimatePresence>
