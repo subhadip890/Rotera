@@ -63,7 +63,10 @@ export function useCreateCircleMutation() {
       submitCreateCircle({
         name: params.name,
         contributionAmount: xlmToStroops(params.amount),
-        cycleLengthDays: cadenceToDays(params.cadence),
+        // testCycleDuration() returns the exact seconds sent to the current Testnet
+        // contract (value <= 3600, seconds branch). Never send production day values
+        // to this contract — see TIMING ARCHITECTURE note in this file.
+        cycleLengthDays: testCycleDuration(params.cadence),
         memberCount: params.memberCount,
         payoutOrderType: params.payoutOrderType || "Manual",
       }),
@@ -208,46 +211,89 @@ export function useRepayDebtMutation() {
   });
 }
 
-// ─── Utilities ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// TIMING ARCHITECTURE
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The currently deployed Testnet contract (CAY3GCWDFCXPU6JEIJAECX5UXWKXSKO5WTAV3QUFXFXRV4USNQ2FKLO4)
+// uses this dual-mode calculate_deadline(cycle_length_days: u32):
+//
+//   value <= 3600  →  deadline = now + value           (interprets as SECONDS)
+//   value >  3600  →  deadline = now + value × 86400   (interprets as DAYS)
+//
+// CRITICAL CONSEQUENCE:
+//   - 7   →  7  <= 3600  →  deadline = now + 7s        (NOT 7 days)
+//   - 14  →  14 <= 3600  →  deadline = now + 14s       (NOT 14 days)
+//   - 30  →  30 <= 3600  →  deadline = now + 30s       (NOT 30 days)
+//
+// THERE IS NO WAY to express 7-day/14-day/30-day cycles on the current contract:
+//   - send 7  → 7 seconds
+//   - send 3601 → 3601 × 86400 = 311,126,400 s ≈ 9.8 years  (wrong)
+//   - send 7 (as days) → 7 × 86400 = 604800 > 3600 → 604800 × 86400 ≈ 1656 years (wrong)
+//
+// SOLUTION: The frontend for the current Testnet deployment ONLY sends
+// explicit second values <= 3600 (accelerated test mode). The UI never
+// falsely labels them as Weekly/Biweekly/Monthly.
+//
+// PRODUCTION / MAINNET: A redeployed contract must use:
+//   cycle_duration_seconds: u64  (unambiguous, no dual-mode branch)
+// With that contract the frontend sends 604800/1209600/2592000 directly.
 
 /**
- * Convert a cadence string or quick-test duration to the cycle_length_days value
- * passed to the Soroban contract's create_circle() function.
+ * Production cadence durations in seconds — for documentation and future mainnet use.
+ * These values CANNOT be used with the current Testnet contract without giving
+ * wildly wrong deadlines (see timing architecture note above).
+ */
+export const PRODUCTION_CADENCES_SECONDS = {
+  /** 7 × 86400 = 604,800 seconds */
+  weekly: 7 * 86400,
+  /** 14 × 86400 = 1,209,600 seconds */
+  biweekly: 14 * 86400,
+  /** 30 × 86400 = 2,592,000 seconds */
+  monthly: 30 * 86400,
+} as const;
+
+/**
+ * Convert a production cadence label to its correct duration in seconds.
+ * FOR DOCUMENTATION / MAINNET USE ONLY.
  *
- * CONTRACT TIMING SEMANTICS (calculate_deadline in lib.rs):
- *   value <= 3600  →  deadline = now + value          (treats value as SECONDS)
- *   value >  3600  →  deadline = now + value × 86400  (treats value as DAYS)
+ * ⚠️  Do NOT pass these values to the current Testnet contract.
+ *     The current contract's dual-mode branch would multiply them by 86400
+ *     again, producing deadlines thousands of years in the future.
  *
- * ACTUAL BEHAVIOR — all current cadences send values <= 3600:
- *   "Weekly"         → 7   → 7  <= 3600 → deadline = now + 7s    (7 second cycle on Testnet)
- *   "Every two weeks"→ 14  → 14 <= 3600 → deadline = now + 14s   (14 second cycle on Testnet)
- *   "Monthly"        → 30  → 30 <= 3600 → deadline = now + 30s   (30 second cycle on Testnet)
- *   "10s"            → 10  → 10 <= 3600 → deadline = now + 10s
- *   "30s"            → 30  → 30 <= 3600 → deadline = now + 30s
- *   "60s"            → 60  → 60 <= 3600 → deadline = now + 60s
- *   "5min"           → 300 → 300 <= 3600→ deadline = now + 300s
+ * With a mainnet contract using `cycle_duration_seconds: u64`, pass these
+ * values directly: 604800, 1209600, or 2592000.
+ */
+export function productionCadenceSeconds(cadence: "weekly" | "biweekly" | "monthly"): number {
+  return PRODUCTION_CADENCES_SECONDS[cadence];
+}
+
+/**
+ * Convert an accelerated test cycle label to the value sent to the current
+ * Testnet contract. All values are <= 3600, triggering the seconds branch:
+ *   deadline = ledger_timestamp + returned_value
  *
- * All cycles currently run in seconds on Testnet — this is correct behavior
- * for the Green Belt submission / fast demo workflow.
+ * These are the ONLY safe values for the current deployed Testnet contract.
+ * They intentionally create short cycles for Green Belt demo / review.
  *
- * For a true mainnet deployment, the contract would need a redeploy with
- * cycle_duration_seconds: u64 to accept raw seconds without the dual-mode branch.
+ * @param label - One of: "10s", "30s", "60s", "5min"
+ * @returns Exact seconds to add to the current ledger timestamp
+ */
+export function testCycleDuration(label: string): number {
+  const lower = label.toLowerCase();
+  if (lower === "10s" || lower === "10 seconds" || lower === "10-second test cycle") return 10;
+  if (lower === "30s" || lower === "30 seconds" || lower === "30-second test cycle") return 30;
+  if (lower === "60s" || lower === "1 minute"  || lower === "60-second test cycle") return 60;
+  if (lower === "5min" || lower === "5 minutes" || lower === "5-minute test cycle") return 300;
+  // Default to 30s for any unrecognised test label
+  console.warn(`[testCycleDuration] Unrecognised label "${label}" — defaulting to 30 seconds`);
+  return 30;
+}
+
+/**
+ * @deprecated Use testCycleDuration() for the current Testnet contract.
+ * Kept for backward compatibility — maps old cadence strings to test durations.
  */
 export function cadenceToDays(cadence: string): number {
-  const lower = cadence.toLowerCase();
-
-  // Explicit quick-test durations
-  if (lower === "10s" || lower === "10 seconds") return 10;
-  if (lower === "30s" || lower === "30 seconds") return 30;
-  if (lower === "60s" || lower === "1 minute") return 60;
-  if (lower === "5min" || lower === "5 minutes") return 300;
-
-  // Named cadences — on Testnet these run in seconds (7s, 14s, 30s)
-  if (lower.includes("two") || lower.includes("biweekly") || lower.includes("fortnight")) {
-    return 14;
-  }
-  if (lower.includes("month")) {
-    return 30;
-  }
-  return 7; // Weekly — 7 seconds on Testnet
+  return testCycleDuration(cadence);
 }

@@ -83,7 +83,12 @@ export const useRotera = create<RoteraStore>((set) => ({
       const errCode =
         err instanceof WalletConnectionError ? err.code : "UNKNOWN";
 
-      captureException(err, { context: "wallet_connect", code: errCode });
+      // NOT_INSTALLED is a user-facing condition (Freighter browser extension not present),
+      // not an application error. Don't send it to Sentry — it would just create noise.
+      // Unexpected errors (REJECTED, UNKNOWN, network failures) are still reported.
+      if (!(err instanceof WalletConnectionError) || err.code !== 'NOT_INSTALLED') {
+        captureException(err, { context: "wallet_connect", code: errCode });
+      }
 
       // Clear any stored address — do NOT fall back to a fake address
       if (typeof window !== "undefined" && typeof localStorage !== "undefined") {

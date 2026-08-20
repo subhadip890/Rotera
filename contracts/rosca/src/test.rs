@@ -863,9 +863,127 @@ fn test_cycle_deadline_test_mode_10_seconds() {
     assert_eq!(state.cycle_deadline, now_before + 10, "10s test mode: deadline = now + 10");
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// 10. repay_debt tests
-// ════════════════════════════════════════════════════════════════════════════
+#[test]
+fn test_timing_60s_gives_60s_deadline() {
+    // Accelerated test: cycle_length_days=60 → deadline = now + 60 seconds
+    // 60 <= 3600 → seconds branch: deadline = now + 60
+    let (env, _, members) = setup_env();
+    let client = deploy_contract(&env);
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    for m in members.iter() {
+        fund_address(&env, &token, &admin, &m, 1_000_0000000);
+    }
+    let now_before = env.ledger().timestamp();
+    let circle_id = client.create_circle(
+        &members.get(0).unwrap(),
+        &circle_name(&env),
+        &50_0000000i128,
+        &60u32, // 60s test cycle — maps to "60-second test cycle" in the UI
+        &(members.len()),
+        &PayoutOrderType::Manual,
+        &token,
+    );
+    for m in members.iter() { client.join_circle(&m, &circle_id); }
+    let state = client.get_status(&circle_id);
+    assert_eq!(state.cycle_deadline, now_before + 60,
+        "60s test mode: cycle_length_days=60 → deadline = now + 60 seconds");
+}
+
+#[test]
+fn test_timing_5min_gives_300s_deadline() {
+    // Accelerated test: cycle_length_days=300 → deadline = now + 300 seconds (5 minutes)
+    // 300 <= 3600 → seconds branch: deadline = now + 300
+    let (env, _, members) = setup_env();
+    let client = deploy_contract(&env);
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    for m in members.iter() {
+        fund_address(&env, &token, &admin, &m, 1_000_0000000);
+    }
+    let now_before = env.ledger().timestamp();
+    let circle_id = client.create_circle(
+        &members.get(0).unwrap(),
+        &circle_name(&env),
+        &50_0000000i128,
+        &300u32, // 300s = 5 minutes — maps to "5-minute test cycle" in the UI
+        &(members.len()),
+        &PayoutOrderType::Manual,
+        &token,
+    );
+    for m in members.iter() { client.join_circle(&m, &circle_id); }
+    let state = client.get_status(&circle_id);
+    assert_eq!(state.cycle_deadline, now_before + 300,
+        "5-minute test mode: cycle_length_days=300 → deadline = now + 300 seconds");
+}
+
+/// Pure math test — no contract call needed.
+/// Proves the correct production cadence durations in seconds (for future mainnet use).
+/// These are the values the frontend WOULD send to a mainnet contract using
+/// `cycle_duration_seconds: u64` (no dual-mode branch).
+#[test]
+fn test_production_cadence_math() {
+    // Weekly:   7 days × 86400 s/day = 604,800 seconds
+    // Biweekly: 14 days × 86400      = 1,209,600 seconds
+    // Monthly:  30 days × 86400      = 2,592,000 seconds
+    assert_eq!(7u64  * 86400, 604_800,   "Weekly   → 604,800 seconds");
+    assert_eq!(14u64 * 86400, 1_209_600, "Biweekly → 1,209,600 seconds");
+    assert_eq!(30u64 * 86400, 2_592_000, "Monthly  → 2,592,000 seconds");
+
+    // Confirm none of these are <= 3600 (they must NOT accidentally use the seconds branch
+    // if ever sent to a future contract that removes the dual-mode branch).
+    assert!(604_800u64   > 3600, "Weekly value > 3600 ✓");
+    assert!(1_209_600u64 > 3600, "Biweekly value > 3600 ✓");
+    assert!(2_592_000u64 > 3600, "Monthly value > 3600 ✓");
+}
+
+/// Proves that sending 604800 (correct weekly seconds) to the CURRENT deployed
+/// Testnet contract is WRONG — it goes through the DAYS branch (value > 3600)
+/// and produces deadline = now + 604800 × 86400 = ~52 billion seconds ≈ 1656 years.
+///
+/// This test documents WHY the frontend MUST NOT send production cadence values
+/// to the current contract, and WHY the UI hides Weekly/Biweekly/Monthly options
+/// when VITE_ENABLE_TEST_CYCLES=true.
+///
+/// The only solution is a mainnet contract redeployment with explicit
+/// `cycle_duration_seconds: u64` semantics.
+#[test]
+fn test_production_604800_on_current_contract_is_wrong() {
+    let (env, _, members) = setup_env();
+    let client = deploy_contract(&env);
+    let admin = Address::generate(&env);
+    let token = setup_token(&env, &admin);
+    for m in members.iter() {
+        fund_address(&env, &token, &admin, &m, 1_000_0000000);
+    }
+    let now_before = env.ledger().timestamp();
+
+    // Send 604800 as cycle_length_days — what a naive "Weekly = 7 * 86400" frontend would do.
+    // Contract: 604800 > 3600 → DAYS branch → deadline = now + 604800 * 86400
+    let circle_id = client.create_circle(
+        &members.get(0).unwrap(),
+        &circle_name(&env),
+        &50_0000000i128,
+        &604800u32, // naive "weekly = 604800" — WRONG for this contract
+        &(members.len()),
+        &PayoutOrderType::Manual,
+        &token,
+    );
+    for m in members.iter() { client.join_circle(&m, &circle_id); }
+    let state = client.get_status(&circle_id);
+    let deadline = state.cycle_deadline;
+
+    // Expected deadline: now + 604800 * 86400 = now + 52,254,720,000 seconds ≈ 1,656 years
+    let expected_deadline = now_before + 604800u64 * 86400u64;
+    assert_eq!(deadline, expected_deadline,
+        "604800 > 3600: DAYS branch fires → deadline is ~1656 years in the future (WRONG for weekly!)");
+
+    // Confirm this is NOT a 7-day deadline (which would be now + 604800)
+    assert!(deadline > now_before + 604_800,
+        "The deadline is WAY beyond 7 days — proves the dual-mode contract cannot be used for production weekly cadence");
+}
+
+
 
 /// Helper: create a circle with debt — member[4] misses a cycle
 fn setup_circle_with_debt(

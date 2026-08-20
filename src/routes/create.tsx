@@ -29,9 +29,14 @@ function CreateCircle() {
   const { wallet, connect, setActiveCircleId } = useRotera();
   const connected = wallet === "connected";
 
+  // Test-mode flag — set VITE_ENABLE_TEST_CYCLES=true for accelerated Testnet demo cycles.
+  // When true: only test cycle options are shown (no misleading Weekly/Biweekly/Monthly labels).
+  const IS_TEST_MODE = import.meta.env["VITE_ENABLE_TEST_CYCLES"] === "true";
+
   const [name, setName] = useState("Sunday Six");
   const [amount, setAmount] = useState("200");
-  const [cadence, setCadence] = useState("Weekly");
+  // Default to 30-second test cycle in test mode; Weekly label in production mode.
+  const [cadence, setCadence] = useState(IS_TEST_MODE ? "30s" : "Weekly");
   const [memberCount, setMemberCount] = useState(6);
   const [seed, setSeed] = useState<number | null>(null);
   const [orderType, setOrderType] = useState<"Manual" | "RandomPending">("Manual");
@@ -143,19 +148,36 @@ function CreateCircle() {
                 onChange={(e) => setCadence(e.target.value)}
                 className="input"
               >
-                <option>Weekly</option>
-                <option>Every two weeks</option>
-                <option>Monthly</option>
-                {/* Quick-test durations for Testnet demo — enabled via VITE_ENABLE_TEST_CYCLES=true */}
-                {import.meta.env["VITE_ENABLE_TEST_CYCLES"] === "true" && (
-                  <optgroup label="⚡ Quick test (Testnet only)">
-                    <option value="10s">10 seconds (demo)</option>
-                    <option value="30s">30 seconds (demo)</option>
-                    <option value="60s">60 seconds (demo)</option>
-                    <option value="5min">5 minutes (demo)</option>
-                  </optgroup>
+                {IS_TEST_MODE ? (
+                  // ── Accelerated Test Mode ────────────────────────────────
+                  // The current Testnet contract interprets all values <= 3600
+                  // as seconds. These options are the ONLY honest choices.
+                  // Weekly/Biweekly/Monthly labels are intentionally hidden to
+                  // avoid misrepresenting the cycle duration.
+                  <>
+                    <option value="10s">10-second test cycle</option>
+                    <option value="30s">30-second test cycle</option>
+                    <option value="60s">60-second test cycle</option>
+                    <option value="5min">5-minute test cycle</option>
+                  </>
+                ) : (
+                  // ── Production Mode (future mainnet contract) ────────────
+                  // These labels are shown only when test mode is disabled.
+                  // A mainnet contract using cycle_duration_seconds: u64 would
+                  // receive 604800 / 1209600 / 2592000 seconds directly.
+                  <>
+                    <option value="Weekly">Weekly (7 days)</option>
+                    <option value="Every two weeks">Every two weeks (14 days)</option>
+                    <option value="Monthly">Monthly (30 days)</option>
+                  </>
                 )}
               </select>
+              {IS_TEST_MODE && (
+                <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+                  ⚡ Accelerated Testnet demo — cycles run in seconds, not days.
+                  Production cadences require a mainnet contract redeployment.
+                </p>
+              )}
             </Field>
             <Field label="Seats" htmlFor="c-seats">
               <div className="flex items-center gap-2">
