@@ -8,6 +8,7 @@
 
 import { trackEvent } from "@/lib/posthog";
 import { captureException } from "@/lib/sentry";
+import { recordCircleEventToSupabase } from "@/lib/supabase";
 import {
   connectFreighter,
   signStellarTx,
@@ -412,6 +413,15 @@ export async function submitCreateCircle(params: {
     tx_hash: txHash,
   });
 
+  recordCircleEventToSupabase({
+    circle_id: circleId,
+    event_type: "circle_created",
+    wallet_address: userAddress,
+    amount_xlm: stroopsToXlm(params.contributionAmount),
+    tx_hash: txHash,
+    details: { member_count: params.memberCount, cadence_days: params.cycleLengthDays },
+  });
+
   return { circleId, txHash };
 }
 
@@ -574,6 +584,13 @@ export async function submitJoinCircle(
     tx_hash: txHash,
   });
 
+  recordCircleEventToSupabase({
+    circle_id: String(circleId),
+    event_type: "circle_joined",
+    wallet_address: userAddress,
+    tx_hash: txHash,
+  });
+
   return { txHash };
 }
 
@@ -601,6 +618,14 @@ export async function submitContribute(
     cycle_number: cycleNumber,
     address: userAddress,
     tx_hash: txHash,
+  });
+
+  recordCircleEventToSupabase({
+    circle_id: String(circleId),
+    event_type: "contribution",
+    wallet_address: userAddress,
+    tx_hash: txHash,
+    details: { cycle_number: cycleNumber },
   });
 
   return { txHash };
@@ -632,6 +657,14 @@ export async function submitCloseCycle(
     tx_hash: txHash,
   });
 
+  recordCircleEventToSupabase({
+    circle_id: String(circleId),
+    event_type: "cycle_closed",
+    wallet_address: userAddress,
+    tx_hash: txHash,
+    details: { cycle_number: cycleNumber },
+  });
+
   return { txHash };
 }
 
@@ -656,6 +689,13 @@ export async function submitWithdrawDeposit(
   trackEvent("deposit_withdrawn", {
     circle_id: String(circleId),
     address: userAddress,
+    tx_hash: txHash,
+  });
+
+  recordCircleEventToSupabase({
+    circle_id: String(circleId),
+    event_type: "deposit_withdrawn",
+    wallet_address: userAddress,
     tx_hash: txHash,
   });
 
@@ -701,6 +741,14 @@ export async function submitRepayDebt(
     circle_id: String(circleId),
     address: userAddress,
     amount_stroops: String(amountStroops),
+    tx_hash: txHash,
+  });
+
+  recordCircleEventToSupabase({
+    circle_id: String(circleId),
+    event_type: "debt_repaid",
+    wallet_address: userAddress,
+    amount_xlm: stroopsToXlm(amountStroops),
     tx_hash: txHash,
   });
 

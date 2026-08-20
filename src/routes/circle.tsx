@@ -7,6 +7,7 @@ import { useRotera } from "@/store/useRotera";
 import { countdown, formatAmount } from "@/lib/rotera";
 import {
   useCircleState,
+  useUserCircles,
   useContributeMutation,
   useCloseCycleMutation,
   useWithdrawDepositMutation,
@@ -38,12 +39,29 @@ function Dashboard() {
     wallet,
     address,
     activeCircleId: circleId,
+    setActiveCircleId,
     lastPayout,
     dismissPayout,
     onboardingDone,
   } = useRotera();
 
-  const { data: circle, isLoading, isError } = useCircleState(circleId);
+  const { data: userCircles } = useUserCircles(address);
+
+  // Auto-resolve effective circle ID: stored active ID -> latest user circle -> fallback "3"
+  const effectiveCircleId =
+    circleId ||
+    (userCircles && userCircles.length > 0
+      ? String(userCircles[userCircles.length - 1])
+      : "3");
+
+  const { data: circle, isLoading, isError } = useCircleState(effectiveCircleId);
+
+  // Auto-persist effectiveCircleId when valid circle loads
+  useEffect(() => {
+    if (circle && effectiveCircleId) {
+      setActiveCircleId(effectiveCircleId);
+    }
+  }, [circle, effectiveCircleId, setActiveCircleId]);
 
   const contributeMutation = useContributeMutation();
   const closeCycleMutation = useCloseCycleMutation();
@@ -59,7 +77,7 @@ function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
-  if (!circleId || (!circle && !isLoading)) {
+  if (!effectiveCircleId || (!circle && !isLoading)) {
     return (
       <div className="mx-auto max-w-3xl px-5 py-20 text-center">
         <Roundtable

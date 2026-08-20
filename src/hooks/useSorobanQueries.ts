@@ -9,6 +9,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getCircleStateOnChain,
+  getMemberCirclesOnChain,
   submitCreateCircle,
   submitJoinCircle,
   submitContribute,
@@ -19,6 +20,7 @@ import {
   stroopsToXlm,
   xlmToStroops,
 } from "@/lib/soroban";
+import { fetchCircleEventsFromSupabase } from "@/lib/supabase";
 import { captureException } from "@/lib/sentry";
 import { useRotera } from "@/store/useRotera";
 
@@ -40,6 +42,29 @@ export function useCircleState(circleId: string | number | null | undefined) {
     refetchInterval: 15_000,   // poll every 15s — not too aggressive
     staleTime: 8_000,
     retry: 2,
+  });
+}
+
+/**
+ * Fetch on-chain member circle IDs for a wallet address.
+ */
+export function useUserCircles(userAddress: string | null | undefined) {
+  return useQuery({
+    queryKey: ["userCircles", userAddress],
+    queryFn: () => getMemberCirclesOnChain(userAddress!),
+    enabled: !!userAddress,
+    staleTime: 15_000,
+  });
+}
+
+/**
+ * Fetch historical events for a circle from Supabase.
+ */
+export function useSupabaseCircleEvents(circleId: string | number | null | undefined) {
+  return useQuery({
+    queryKey: ["supabaseCircleEvents", String(circleId)],
+    queryFn: () => fetchCircleEventsFromSupabase(circleId),
+    staleTime: 5_000,
   });
 }
 
