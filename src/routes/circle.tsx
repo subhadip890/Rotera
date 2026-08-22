@@ -16,6 +16,7 @@ import {
 } from "@/hooks/useSorobanQueries";
 import { mapSorobanError } from "@/lib/soroban";
 import { trackEvent } from "@/lib/posthog";
+import { copyToClipboard } from "@/lib/clipboard";
 
 export const Route = createFileRoute("/circle")({
   validateSearch: (search: Record<string, unknown>): { circleId?: string | undefined } => ({
@@ -96,6 +97,7 @@ function CircleDashboard() {
   const [now, setNow] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Separate pending flag for close_cycle so it never blocks repay/pay buttons
   const [isClosing, setIsClosing] = useState(false);
@@ -427,21 +429,25 @@ function CircleDashboard() {
                       />
                       <button
                         type="button"
-                        onClick={() => {
-                          if (typeof navigator !== "undefined") {
-                            const url = `${window.location.origin}/join/${effectiveCircleId}`;
-                            navigator.clipboard.writeText(url).catch(() => {});
+                        onClick={async () => {
+                          const url = `${window.location.origin}/join/${effectiveCircleId}`;
+                          const ok = await copyToClipboard(url);
+                          if (ok) {
                             setCopied(true);
+                            setCopyError(false);
                             trackEvent("invite_copied", {
                               circle_id: effectiveCircleId,
                               source: "dashboard_filling",
                             });
-                            setTimeout(() => setCopied(false), 2000);
+                            setTimeout(() => setCopied(false), 1800);
+                          } else {
+                            setCopyError(true);
+                            setTimeout(() => setCopyError(false), 3000);
                           }
                         }}
                         className="rounded-md bg-brass px-4 py-2 text-xs font-semibold text-ink transition-opacity hover:opacity-90 shrink-0"
                       >
-                        {copied ? "Copied!" : "Copy link"}
+                        {copied ? "Copied!" : copyError ? "Couldn't copy" : "Copy link"}
                       </button>
                     </div>
                   </div>

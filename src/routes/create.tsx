@@ -6,6 +6,7 @@ import { useCreateCircleMutation } from "@/hooks/useSorobanQueries";
 import { useRotera } from "@/store/useRotera";
 import { mapSorobanError } from "@/lib/soroban";
 import { trackEvent } from "@/lib/posthog";
+import { copyToClipboard } from "@/lib/clipboard";
 
 export const Route = createFileRoute("/create")({
   head: () => ({
@@ -47,6 +48,8 @@ function CreateCircle() {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
 
   const createCircleMutation = useCreateCircleMutation();
 
@@ -295,18 +298,29 @@ function CreateCircle() {
             )}
             <button
               type="button"
-              onClick={() => {
-                if (typeof navigator !== "undefined") {
-                  navigator.clipboard.writeText(invite).catch(() => {});
+              onClick={async () => {
+                if (!invite) return;
+                const ok = await copyToClipboard(invite);
+                if (ok) {
+                  setCopied(true);
+                  setCopyError(false);
                   trackEvent("invite_copied", {
                     circle_id: realCircleId,
                     source: "create_success",
                   });
+                  setTimeout(() => setCopied(false), 1800);
+                } else {
+                  setCopyError(true);
+                  setTimeout(() => setCopyError(false), 3000);
                 }
               }}
               className="mt-3 rounded-md border border-border px-4 py-2 text-sm font-medium transition-colors duration-200 hover:bg-parchment"
             >
-              Copy invite link
+              {copied
+                ? "Copied!"
+                : copyError
+                  ? "Couldn't copy — please copy manually"
+                  : "Copy invite link"}
             </button>
             <Link
               to="/join/$circleId"
